@@ -1,0 +1,262 @@
+// Esquema de dominio del MVP de agendamiento. Fuente de reglas de negocio:
+// ../../docs/mvp/REQUERIMIENTOS_FUNCIONALES.md. Identificadores en inglés;
+// comentarios en español (ver ../CLAUDE.md, sección de idioma).
+//
+// La URL de conexión para `migrate`/`db seed`/`studio` vive en ../prisma.config.ts,
+// no acá: en Prisma 7 `datasource.url` ya no se acepta en este archivo.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Estado de una sesión. El contrato público congelado la transporta como
+/// literal en español ("pendiente", "confirmada", "no_confirmada", "cancelada");
+/// el mapa entre ambos vive en src/domain/session-status.ts y es la única
+/// traducción de idioma del sistema.
+enum SessionStatus {
+  PENDING
+  CONFIRMED
+  NOT_CONFIRMED
+  CANCELLED
+}
+
+/// Quién originó una transición de sesión. Determina si a la educadora le llega
+/// un correo: solo si el cambio no lo hizo ella misma en su agenda.
+enum Actor {
+  GUARDIAN
+  EDUCATOR
+  SYSTEM
+}
+
+/// La educadora diferencial. Única profesional, único acceso del panel privado.
+model Educator {
+  id           String @id @default(cuid())
+  email        String @unique
+  name         String
+  passwordHash String
+
+  /// Se incrementa al restablecer la clave, para invalidar sesiones JWT abiertas.
+  tokenVersion Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Ficha reutilizable de apoderado. La cuenta (passwordHash) es opcional: se
+/// puede reservar sin ella.
+model Guardian {
+  id    String @id @default(cuid())
+  name  String
+  email String @unique
+  phone String
+
+  /// Null mientras no exista cuenta opcional.
+  passwordHash String?
+  /// Se incrementa al restablecer la clave, para invalidar sesiones JWT abiertas.
+  tokenVersion Int     @default(0)
+
+  children       Child[]
+  sessions       Session[]
+  series         Series[]
+  passwordResets PasswordReset[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Niño o alumno. Pertenece a un solo apoderado. En la reserva pública la edad
+/// debe estar entre 3 y 13 inclusive (validado en el dominio, no acá); desde el
+/// panel la educadora puede guardar una edad fuera de ese rango.
+model Child {
+  id         String @id @default(cuid())
+  guardianId String
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  name           String
+  /// `name` normalizado (minúsculas, espacios colapsados) para la regla de
+  /// reutilización: mismo apoderado + mismo nombre normalizado = mismo niño.
+  normalizedName String
+  age            Int
+
+  sessions Session[]
+  series   Series[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guardianId, normalizedName])
+}
+
+/// Una cita de un niño en un cupo. El índice que impide reservar el mismo
+/// `startsAt` dos veces con un estado activo (PENDING o CONFIRMED) vive como SQL
+/// crudo en la migración (`session_active_slot`), no en este esquema: Prisma no
+/// modela índices únicos parciales. Dos sesiones históricas (CANCELLED o
+/// NOT_CONFIRMED) sí pueden compartir `startsAt`.
+model Session {
+  id String @id @default(cuid())
+
+  childId    String
+  child      Child    @relation(fields: [childId], references: [id], onDelete: Restrict)
+  guardianId String
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Restrict)
+
+  /// Instante UTC de inicio del cupo. Duración fija de 1 hora (no se guarda fin).
+  startsAt DateTime @db.Timestamptz(3)
+  status   SessionStatus
+
+  confirmToken String @unique
+  cancelToken  String @unique
+
+  /// Nota opcional del apoderado sobre en qué quiere apoyo (máx. 500 caracteres,
+  /// validado en el dominio). No se guarda en la ficha del niño.
+  helpRequest String?
+
+  /// Presente si esta sesión pertenece a una serie semanal.
+  seriesId String?
+  series   Series? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+
+  /// Quién creó esta sesión (apoderado, educadora o el sistema).
+  createdBy Actor
+
+  /// Momento en que se envió el correo de alta de esta sesión de serie (con la
+  /// antelación configurada). Null si aún no corresponde enviarlo o si no es
+  /// parte de una serie (las citas únicas envían su correo al crearse).
+  noticeSentAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startsAt])
+  @@index([status])
+  @@index([seriesId])
+}
+
+/// Serie semanal creada desde el panel privado: mismo niño, mismo día y hora,
+/// entre una fecha de inicio y una de término. Nunca sin fecha de fin.
+model Series {
+  id String @id @default(cuid())
+
+  childId    String
+  child      Child    @relation(fields: [childId], references: [id], onDelete: Restrict)
+  guardianId String
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Restrict)
+
+  /// 0 (domingo) a 6 (sábado), como `Date#getDay()`.
+  weekday Int
+  /// `HH:mm` en hora de Chile.
+  time    String
+
+  /// Días de calendario en hora de Chile, sin componente horario.
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+
+  sessions Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Una hora de la plantilla semanal vigente (sin historial de vigencias:
+/// cambiarla solo afecta cupos libres hacia adelante). Inicial: lunes a viernes
+/// 19:00 y 20:00; sábado 09:00, 10:00 y 11:00 (3 cupos, no 4).
+model TemplateSlot {
+  id String @id @default(cuid())
+
+  /// 0 (domingo) a 6 (sábado), como `Date#getDay()`.
+  weekday Int
+  /// `HH:mm` en hora de Chile.
+  time    String
+
+  createdAt DateTime @default(now())
+
+  @@unique([weekday, time])
+}
+
+/// Un día completo bloqueado por la educadora. Solo aplica a cupos vacíos: si
+/// hay una sesión, primero se cancela o se mueve (regla de dominio, no de BD).
+model DayBlock {
+  id String @id @default(cuid())
+
+  /// Día de calendario en hora de Chile, sin componente horario.
+  date DateTime @db.Date
+
+  createdAt DateTime @default(now())
+
+  @@unique([date])
+}
+
+/// Un cupo suelto bloqueado por la educadora (día + hora puntual).
+model SlotBlock {
+  id String @id @default(cuid())
+
+  /// Día de calendario en hora de Chile, sin componente horario.
+  date DateTime @db.Date
+  /// `HH:mm` en hora de Chile.
+  time String
+
+  createdAt DateTime @default(now())
+
+  @@unique([date, time])
+}
+
+/// Configuración global, fila única (id = 1). Los tres valores editables desde
+/// el panel privado; `seriesNoticeHours` debe ser mayor que
+/// `confirmationDeadlineHours` (validado en el dominio: el aviso de serie tiene
+/// que salir antes de que venza el plazo).
+model Preferences {
+  id Int @id @default(1)
+
+  /// Horas antes de la cita para que el apoderado confirme. Inicial: 24.
+  confirmationDeadlineHours Int @default(24)
+  /// Antelación del correo de cada sesión de una serie. Inicial: 48.
+  seriesNoticeHours         Int @default(48)
+  /// Cuántas semanas hacia adelante puede reservar un apoderado. Inicial: 8.
+  bookingHorizonWeeks       Int @default(8)
+
+  updatedAt DateTime @updatedAt
+}
+
+/// Enlace de un solo uso para restablecer la clave de la cuenta opcional del
+/// apoderado.
+model PasswordReset {
+  id String @id @default(cuid())
+
+  guardianId String
+  guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  /// Hash del token (nunca el token en texto plano en la BD).
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+/// Bandeja de salida de correos: se escribe en la misma transacción que el
+/// cambio de estado que la origina, y un job aparte la despacha con reintentos.
+/// Así un fallo del proveedor de correo nunca revierte una reserva.
+model OutboxEmail {
+  id String @id @default(cuid())
+
+  sessionId String?
+
+  /// Tipo de correo (identificador en inglés; el contenido es en español).
+  /// Ej.: BOOKING_PENDING, BOOKING_CONFIRMED, CONFIRMED, CANCELLED,
+  /// RESCHEDULED, RELEASED, GUARDIAN_CONFIRMED, GUARDIAN_CANCELLED.
+  kind      String
+  recipient String
+  status    String @default("PENDING")
+  attempts  Int    @default(0)
+  error     String?
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  @@index([status])
+}

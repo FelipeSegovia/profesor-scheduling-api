@@ -1,0 +1,22 @@
+# Postgres local para desarrollo. La API se corre fuera del contenedor (pnpm start:dev).
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: profesor_scheduling
+      POSTGRES_PASSWORD: profesor_scheduling
+      POSTGRES_DB: profesor_scheduling
+    ports:
+      # 5433 en el host para no chocar con un Postgres local en el puerto por defecto.
+      - '5433:5432'
+    volumes:
+      - profesor_scheduling_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U profesor_scheduling']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  profesor_scheduling_db:
