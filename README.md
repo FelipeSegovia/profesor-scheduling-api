@@ -182,6 +182,14 @@ pnpm db:migrate                 # prisma migrate dev
 pnpm db:seed                    # prisma db seed (idempotente)
 ```
 
+## Documentación de la API
+
+[`docs/API.md`](docs/API.md) resume el contrato HTTP; [`docs/openapi.json`](docs/openapi.json) es el esquema OpenAPI exacto, generado desde el código — fuente de la verdad para los frontends. Regenerar con:
+
+```bash
+pnpm docs:openapi
+```
+
 ## Flujo SDD
 
 Las features viven en [`.specs/<NNN>-<nombre>/`](.specs/), con `spec.md` aprobado antes de escribir código. Ver [CLAUDE.md](CLAUDE.md) para las reglas completas.

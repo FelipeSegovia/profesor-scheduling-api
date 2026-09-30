@@ -1,0 +1,317 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "La API y la base de datos responden."
+          },
+          "503": {
+            "description": "La base de datos no responde."
+          }
+        },
+        "summary": "Estado de la API y de su conexión a la base de datos",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/slots": {
+      "get": {
+        "operationId": "SlotsController_list",
+        "parameters": [
+          {
+            "name": "weekStart",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "2026-10-05",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cupos de la semana solicitada."
+          },
+          "400": {
+            "description": "Falta el parámetro `weekStart`."
+          }
+        },
+        "summary": "Cupos de lunes a sábado para la semana de `weekStart`",
+        "tags": [
+          "slots"
+        ]
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Cuenta creada."
+          },
+          "400": {
+            "description": "WEAK_PASSWORD o MISSING_FIELDS."
+          },
+          "409": {
+            "description": "ACCOUNT_EXISTS."
+          }
+        },
+        "summary": "Crear la cuenta opcional del apoderado",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Sesión iniciada."
+          },
+          "401": {
+            "description": "INVALID_CREDENTIALS."
+          }
+        },
+        "summary": "Iniciar sesión con la cuenta opcional",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Sesión cerrada."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cerrar sesión (siempre 204, con o sin sesión válida)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Perfil del apoderado."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Perfil de la cuenta con sesión activa",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/email-status": {
+      "get": {
+        "operationId": "AuthController_emailStatus",
+        "parameters": [
+          {
+            "name": "email",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Siempre responde, nunca falla."
+          }
+        },
+        "summary": "Si un correo ya tiene cuenta",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/forgot": {
+      "post": {
+        "operationId": "AuthController_forgot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Siempre `{ ok: true }`, nunca filtra si el correo tiene cuenta."
+          }
+        },
+        "summary": "Pedir un enlace de recuperación de clave",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/reset": {
+      "post": {
+        "operationId": "AuthController_reset",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Clave restablecida; sesión iniciada."
+          },
+          "400": {
+            "description": "INVALID_RESET o WEAK_PASSWORD."
+          },
+          "404": {
+            "description": "NO_ACCOUNT."
+          }
+        },
+        "summary": "Restablecer la clave con el token del correo",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/bookings": {
+      "post": {
+        "operationId": "BookingsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Reserva creada."
+          },
+          "400": {
+            "description": "INVALID_AGE, MISSING_FIELDS, EMAIL_MISMATCH, WEAK_PASSWORD, PAST_SLOT o HELP_REQUEST_TOO_LONG."
+          },
+          "409": {
+            "description": "ACCOUNT_EXISTS o SLOT_TAKEN."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reservar una sesión suelta",
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/bookings/{id}": {
+      "get": {
+        "operationId": "BookingsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reserva encontrada."
+          },
+          "404": {
+            "description": "Reserva no encontrada."
+          }
+        },
+        "summary": "Consultar una reserva por id",
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/sessions/confirm/{token}": {
+      "post": {
+        "operationId": "SessionsController_confirm",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sesión confirmada (idempotente si ya lo estaba)."
+          },
+          "404": {
+            "description": "INVALID_TOKEN."
+          },
+          "409": {
+            "description": "NOT_PENDING."
+          }
+        },
+        "summary": "Confirmar una sesión pendiente",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/cancel/{token}": {
+      "post": {
+        "operationId": "SessionsController_cancel",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sesión cancelada (idempotente si ya lo estaba)."
+          },
+          "404": {
+            "description": "INVALID_TOKEN."
+          },
+          "409": {
+            "description": "CANCEL_NOT_ALLOWED."
+          }
+        },
+        "summary": "Cancelar una sesión",
+        "tags": [
+          "sessions"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "profesor-scheduling-api",
+    "description": "Backend del agendamiento de la educadora diferencial.",
+    "version": "0.0.1",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {}
+  }
+}

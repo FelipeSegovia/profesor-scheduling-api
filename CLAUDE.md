@@ -19,6 +19,8 @@ Backend del agendamiento de la educadora diferencial. La spec [`001-fundaciones-
 
 Ningún job despacha `OutboxEmail` todavía (se llena en cada evento, pero el envío real es la spec siguiente: "vencimiento de confirmación con su job").
 
+**Contrato para los frontends**: [`docs/API.md`](docs/API.md) (resumen) y [`docs/openapi.json`](docs/openapi.json) (esquema OpenAPI exacto, generado con `pnpm docs:openapi`; ver ese comando en `package.json` y el porqué de compilar con `nest build` en vez de `tsx` en `src/scripts/export-openapi.ts`). Regenerar después de cualquier spec que cambie un endpoint.
+
 ## Su lugar en el proyecto
 
 `../` contiene tres apps independientes, cada una con su propio `.git` y `package.json`; no comparten código. Las dos del frontend ([`private-profesor-scheduling/`](../private-profesor-scheduling/) y [`public-parents-scheduling-web/`](../public-parents-scheduling-web/)) funcionan hoy contra MSW en memoria — todavía no están conectadas a esta API. Esta es la que debe reemplazar esos mocks, así que **los handlers MSW existentes son el contrato de partida**, no una referencia opcional:
