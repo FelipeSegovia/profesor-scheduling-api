@@ -88,3 +88,17 @@ export function canCancelSession(session: SessionLike, now = new Date()): boolea
   }
   return isBefore(now, parseISO(session.startsAt));
 }
+
+/**
+ * Mover una sesión (panel de la educadora) exige lo mismo que cancelarla:
+ * activa y no pasada. Si ya pasó o no está activa, primero hay que cancelarla
+ * o crear una nueva.
+ */
+export function canMoveSession(session: SessionLike, now = new Date()): boolean {
+  return canCancelSession(session, now);
+}
+
+/** Marcar `confirmada` a mano solo tiene sentido mientras sigue `pendiente`. */
+export function canMarkConfirmed(session: SessionLike): boolean {
+  return session.status === 'PENDING';
+}

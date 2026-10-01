@@ -17,6 +17,8 @@ import {
   normalizeName,
 } from '../domain/booking.js';
 import { isPastSlot } from '../domain/time.js';
+import { SessionEventsService } from '../events/session-events.service.js';
+import { sessionEvent } from '../events/session-events.js';
 import { OutboxKind, OutboxService } from '../outbox/outbox.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateBookingBody } from './bookings.schemas.js';
@@ -33,6 +35,7 @@ export class BookingsService {
     private readonly prisma: PrismaService,
     private readonly outbox: OutboxService,
     private readonly tokens: TokenService,
+    private readonly events: SessionEventsService,
   ) {}
 
   async getBookingBundle(sessionId: string): Promise<BookingResult> {
@@ -194,6 +197,18 @@ export class BookingsService {
       return { guardian, child, session };
     });
 
+    // Después del commit: una reserva que revierte (SLOT_TAKEN) no avisa al panel.
+    this.events.emit(
+      sessionEvent({
+        kind: 'CREATED',
+        sessionId: session.id,
+        childName: child.name,
+        startsAt: session.startsAt,
+        actor: 'GUARDIAN',
+        at: session.createdAt,
+      }),
+    );
+
     const result: BookingResult = {
       session: sessionToDto(session),
       guardian: guardianToDto(guardian),
@@ -222,16 +237,30 @@ export class BookingsService {
       throw new DomainError(ErrorMessage.NOT_PENDING, 409, 'NOT_PENDING');
     }
 
+    const now = new Date();
     await this.prisma.$transaction(async (tx) => {
-      await tx.session.update({ where: { id: session.id }, data: { status: 'CONFIRMED' } });
+      await tx.session.update({
+        where: { id: session.id },
+        data: { status: 'CONFIRMED', statusChangedBy: 'GUARDIAN', statusChangedAt: now },
+      });
       const guardian = await tx.guardian.findUniqueOrThrow({ where: { id: session.guardianId } });
       await this.outbox.write(
         { kind: OutboxKind.CONFIRMED, recipient: guardian.email, sessionId: session.id },
         tx,
       );
+      // El apoderado confirmó: la educadora no lo hizo ella misma, así que le
+      // avisa (regla canónica: solo 2 casos reciben correo). Ver
+      // `.specs/004-panel-educadora/spec.md`, requisito 11.
+      const educator = await tx.educator.findFirstOrThrow();
+      await this.outbox.write(
+        { kind: OutboxKind.GUARDIAN_CONFIRMED, recipient: educator.email, sessionId: session.id },
+        tx,
+      );
     });
 
-    return this.getBookingBundle(session.id);
+    const bundle = await this.getBookingBundle(session.id);
+    this.emitStatusChange('CONFIRMED', session, bundle, now);
+    return bundle;
   }
 
   async cancelByToken(cancelToken: string): Promise<BookingResult> {
@@ -246,15 +275,45 @@ export class BookingsService {
       throw new DomainError(ErrorMessage.CANCEL_NOT_ALLOWED, 409, 'CANCEL_NOT_ALLOWED');
     }
 
+    const now = new Date();
     await this.prisma.$transaction(async (tx) => {
-      await tx.session.update({ where: { id: session.id }, data: { status: 'CANCELLED' } });
+      await tx.session.update({
+        where: { id: session.id },
+        data: { status: 'CANCELLED', statusChangedBy: 'GUARDIAN', statusChangedAt: now },
+      });
       const guardian = await tx.guardian.findUniqueOrThrow({ where: { id: session.guardianId } });
       await this.outbox.write(
         { kind: OutboxKind.CANCELLED, recipient: guardian.email, sessionId: session.id },
         tx,
       );
+      const educator = await tx.educator.findFirstOrThrow();
+      await this.outbox.write(
+        { kind: OutboxKind.GUARDIAN_CANCELLED, recipient: educator.email, sessionId: session.id },
+        tx,
+      );
     });
 
-    return this.getBookingBundle(session.id);
+    const bundle = await this.getBookingBundle(session.id);
+    this.emitStatusChange('CANCELLED', session, bundle, now);
+    return bundle;
+  }
+
+  /** Avisa al panel del cambio de estado hecho por el apoderado (ya con commit). */
+  private emitStatusChange(
+    kind: 'CONFIRMED' | 'CANCELLED',
+    session: { id: string; startsAt: Date },
+    bundle: BookingResult,
+    at: Date,
+  ): void {
+    this.events.emit(
+      sessionEvent({
+        kind,
+        sessionId: session.id,
+        childName: bundle.child.name,
+        startsAt: session.startsAt,
+        actor: 'GUARDIAN',
+        at,
+      }),
+    );
   }
 }

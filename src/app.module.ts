@@ -6,6 +6,8 @@ import { HealthModule } from './health/health.module.js';
 import { SlotsModule } from './slots/slots.module.js';
 import { BookingsModule } from './bookings/bookings.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { PanelModule } from './panel/panel.module.js';
+import { EventsModule } from './events/events.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -32,10 +34,12 @@ const observeImports: DynamicModule[] = observeCredentials
   imports: [
     ConfigModule,
     PrismaModule,
+    EventsModule,
     HealthModule,
     SlotsModule,
     AuthModule,
     BookingsModule,
+    PanelModule,
     ...observeImports,
   ],
 })

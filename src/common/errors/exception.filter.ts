@@ -7,14 +7,17 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ZodError } from 'zod';
-import { DomainError, ErrorCode, type ErrorCodeValue } from './domain-error.js';
+import { DomainError, ErrorCode } from './domain-error.js';
 
 /**
  * Forma exacta del contrato público congelado: `{ error, code }`, con `code`
  * ausente (no `null`) cuando no corresponde. Ver
  * `public-parents-scheduling-web/src/mocks/handlers.ts` (`errorResponse`).
+ * `code` es `string`, no `ErrorCodeValue`: también transporta los códigos del
+ * panel de la educadora (`src/common/errors/panel-messages.ts`), cuyo
+ * contrato no está congelado.
  */
-type ErrorBody = { error: string; code?: ErrorCodeValue };
+type ErrorBody = { error: string; code?: string };
 
 /**
  * Filtro global: normaliza cualquier excepción a `{ error, code }` con el

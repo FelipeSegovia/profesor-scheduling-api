@@ -1,4 +1,5 @@
-import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { hash } from 'argon2';
+import type { Educator, PrismaClient } from '../../src/generated/prisma/client.js';
 
 /** Plantilla inicial del MVP: lunes a viernes 19:00/20:00, sábado 09:00-11:00. */
 export async function seedTemplateSlots(prisma: PrismaClient): Promise<void> {
@@ -8,6 +9,18 @@ export async function seedTemplateSlots(prisma: PrismaClient): Promise<void> {
   ]);
   rows.push({ weekday: 6, time: '09:00' }, { weekday: 6, time: '10:00' }, { weekday: 6, time: '11:00' });
   await prisma.templateSlot.createMany({ data: rows });
+}
+
+/** Educator de prueba con clave conocida, para los e2e del panel. */
+export async function seedEducator(
+  prisma: PrismaClient,
+  overrides: Partial<{ email: string; name: string; password: string }> = {},
+): Promise<Educator> {
+  const email = overrides.email ?? 'loreto@example.com';
+  const password = overrides.password ?? 'clave12345678';
+  return prisma.educator.create({
+    data: { email, name: overrides.name ?? 'Loreto Castillo', passwordHash: await hash(password) },
+  });
 }
 
 export async function seedPreferences(

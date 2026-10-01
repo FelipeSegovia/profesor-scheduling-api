@@ -29,17 +29,24 @@ export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /**
  * Excepción de dominio. Equivalente al `httpError()` de `db.ts`: mensaje en
- * español (lo que ve el apoderado), status HTTP y código en inglés.
+ * español (lo que ve el apoderado o la educadora), status HTTP y código en
+ * inglés.
  *
  * `code` es opcional: dos respuestas del contrato congelado no llevan código
  * (`Reserva no encontrada`, `Falta weekStart`). El filtro global omite la
  * clave `code` en la respuesta cuando no viene, en vez de emitir `code: null`.
+ *
+ * El tipo es `string`, no `ErrorCodeValue`: el panel de la educadora
+ * (`.specs/004-panel-educadora/`) tiene sus propios códigos
+ * (`src/common/errors/panel-messages.ts`) y su contrato no está congelado, a
+ * diferencia del apoderado. `ErrorCodeValue` sigue existiendo para que el
+ * código que sí pertenece al contrato congelado quede documentado como tal.
  */
 export class DomainError extends Error {
   readonly status: number;
-  readonly code?: ErrorCodeValue;
+  readonly code?: string;
 
-  constructor(message: string, status: number, code?: ErrorCodeValue) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'DomainError';
     this.status = status;

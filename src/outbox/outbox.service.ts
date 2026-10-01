@@ -11,6 +11,12 @@ export const OutboxKind = {
   BOOKING_CONFIRMED: 'BOOKING_CONFIRMED',
   CONFIRMED: 'CONFIRMED',
   CANCELLED: 'CANCELLED',
+  /** Al apoderado, cuando la educadora mueve una sesión a otro cupo (spec 004). */
+  RESCHEDULED: 'RESCHEDULED',
+  /** A la educadora, cuando el apoderado confirma por el enlace del correo (spec 004). */
+  GUARDIAN_CONFIRMED: 'GUARDIAN_CONFIRMED',
+  /** A la educadora, cuando el apoderado cancela (enlace o vencimiento) (spec 004). */
+  GUARDIAN_CANCELLED: 'GUARDIAN_CANCELLED',
 } as const;
 
 export type OutboxKindValue = (typeof OutboxKind)[keyof typeof OutboxKind];

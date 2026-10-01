@@ -23,6 +23,11 @@ export function toChileDateString(date: Date): string {
   return formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd');
 }
 
+/** Hora de calendario Chile (HH:mm) para un instante dado. */
+export function toChileTimeString(date: Date): string {
+  return formatInTimeZone(date, TIMEZONE, 'HH:mm');
+}
+
 /** Lunes de la semana de Chile que contiene `anchor`, como YYYY-MM-DD. */
 export function weekMondayYmd(anchor = new Date()): string {
   const local = toZonedTime(anchor, TIMEZONE);
@@ -34,6 +39,37 @@ export function weekMondayYmd(anchor = new Date()): string {
 export function weekDaysMonSatYmd(mondayYmd: string): string[] {
   const monday = parseYmdAsLocalParts(mondayYmd);
   return Array.from({ length: 6 }, (_, i) => format(addDays(monday, i), 'yyyy-MM-dd'));
+}
+
+/**
+ * Lunes a domingo (YYYY-MM-DD) de la semana que empieza en mondayYmd. El panel
+ * de la educadora muestra los 7 días (la plantilla puede incluir el domingo),
+ * a diferencia del contrato público que solo llega hasta el sábado.
+ */
+export function weekDaysMonSunYmd(mondayYmd: string): string[] {
+  const monday = parseYmdAsLocalParts(mondayYmd);
+  return Array.from({ length: 7 }, (_, i) => format(addDays(monday, i), 'yyyy-MM-dd'));
+}
+
+/** Domingo (YYYY-MM-DD) de la semana que empieza en mondayYmd. */
+export function weekSundayYmd(mondayYmd: string): string {
+  const monday = parseYmdAsLocalParts(mondayYmd);
+  return format(addDays(monday, 6), 'yyyy-MM-dd');
+}
+
+/** Fecha de calendario Chile (YYYY-MM-DD) de hoy. */
+export function todayChileYmd(now = new Date()): string {
+  return toChileDateString(now);
+}
+
+/**
+ * Rango `[inicio, fin)` en UTC de un día de calendario chileno, para usar en
+ * consultas `startsAt: { gte, lt }`. `fin` es la medianoche del día siguiente.
+ */
+export function chileDayRange(dateYmd: string): [Date, Date] {
+  const start = fromZonedTime(`${dateYmd}T00:00:00`, TIMEZONE);
+  const end = fromZonedTime(`${format(addDays(parseYmdAsLocalParts(dateYmd), 1), 'yyyy-MM-dd')}T00:00:00`, TIMEZONE);
+  return [start, end];
 }
 
 /** Día de la semana (0 domingo … 6 sábado) de una fecha YYYY-MM-DD, sin desfase horario. */

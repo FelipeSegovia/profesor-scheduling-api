@@ -13,6 +13,11 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('7d'),
 
+  /// JWT de la educadora: secreto separado del apoderado para que un token de
+  /// una superficie nunca sirva en la otra (ver `.specs/004-panel-educadora/plan.md`).
+  EDUCATOR_JWT_SECRET: z.string().min(32),
+  EDUCATOR_JWT_EXPIRES_IN: z.string().default('7d'),
+
   CORS_ORIGINS: z
     .string()
     .default('')

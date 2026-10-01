@@ -4,6 +4,7 @@ import type { App } from 'supertest/types.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { createTestApp } from './helpers/app.js';
 import { truncateAll } from './helpers/db.js';
+import { seedEducator } from './helpers/fixtures.js';
 
 async function makeSession(
   prisma: PrismaService,
@@ -39,6 +40,9 @@ describe('Sessions (e2e) — confirmar y cancelar', () => {
 
   beforeEach(async () => {
     await truncateAll(prisma);
+    // confirmByToken/cancelByToken también avisan a la educadora (spec 004):
+    // buscan la fila `Educator` dentro de la misma transacción.
+    await seedEducator(prisma);
   });
 
   afterAll(async () => {
@@ -58,7 +62,9 @@ describe('Sessions (e2e) — confirmar y cancelar', () => {
       expect(res.status).toBe(200);
       expect(res.body.session.status).toBe('confirmada');
       const outbox = await prisma.outboxEmail.findMany({ where: { sessionId: session.id } });
-      expect(outbox.map((o) => o.kind)).toEqual(['CONFIRMED']);
+      expect(outbox.map((o) => o.kind).sort()).toEqual(['CONFIRMED', 'GUARDIAN_CONFIRMED']);
+      const toEducator = outbox.find((o) => o.kind === 'GUARDIAN_CONFIRMED');
+      expect(toEducator?.recipient).toBe('loreto@example.com');
     });
 
     it('sobre una sesión CANCELLED/NOT_CONFIRMED → 409 NOT_PENDING', async () => {
@@ -94,7 +100,9 @@ describe('Sessions (e2e) — confirmar y cancelar', () => {
       expect(res.status).toBe(200);
       expect(res.body.session.status).toBe('cancelada');
       const outbox = await prisma.outboxEmail.findMany({ where: { sessionId: session.id } });
-      expect(outbox.map((o) => o.kind)).toEqual(['CANCELLED']);
+      expect(outbox.map((o) => o.kind).sort()).toEqual(['CANCELLED', 'GUARDIAN_CANCELLED']);
+      const toEducator = outbox.find((o) => o.kind === 'GUARDIAN_CANCELLED');
+      expect(toEducator?.recipient).toBe('loreto@example.com');
     });
 
     it('después de la hora de la cita → 409 CANCEL_NOT_ALLOWED', async () => {

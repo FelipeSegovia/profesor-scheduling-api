@@ -44,6 +44,10 @@ model Educator {
   /// Se incrementa al restablecer la clave, para invalidar sesiones JWT abiertas.
   tokenVersion Int @default(0)
 
+  /// Última vez que abrió la campana de avisos del panel. Null = nunca. Los avisos
+  /// posteriores a esta marca cuentan como no leídos (spec 005).
+  notificationsSeenAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -123,6 +127,15 @@ model Session {
 
   /// Quién creó esta sesión (apoderado, educadora o el sistema).
   createdBy Actor
+
+  /// Quién originó la última transición de estado (confirmar, cancelar o
+  /// mover), distinto de `createdBy` que solo registra el alta. Null mientras
+  /// el estado no ha cambiado desde la creación. Determina si la educadora
+  /// recibe correo (solo si el cambio no lo hizo ella) y alimenta la
+  /// actividad reciente del panel.
+  statusChangedBy Actor?
+  /// Momento de esa última transición. Null junto con `statusChangedBy`.
+  statusChangedAt DateTime?
 
   /// Momento en que se envió el correo de alta de esta sesión de serie (con la
   /// antelación configurada). Null si aún no corresponde enviarlo o si no es

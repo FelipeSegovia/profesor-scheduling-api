@@ -35,6 +35,7 @@ async function main(): Promise<void> {
       .setTitle('profesor-scheduling-api')
       .setDescription('Backend del agendamiento de la educadora diferencial.')
       .setVersion('0.0.1')
+      .addBearerAuth()
       .build(),
   );
 

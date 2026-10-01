@@ -1,13 +1,25 @@
 import {
   chileDateToColumn,
+  chileDayRange,
   columnToChileDate,
   slotStartsAtIso,
   toChileDateString,
+  toChileTimeString,
+  todayChileYmd,
   weekdayOf,
   weekDaysMonSatYmd,
+  weekDaysMonSunYmd,
   weekMondayYmd,
+  weekSundayYmd,
   isPastSlot,
 } from './time.js';
+
+describe('toChileTimeString', () => {
+  it('formatea la hora local de Chile a ambos lados del cambio de horario', () => {
+    expect(toChileTimeString(new Date(slotStartsAtIso('2026-01-15', '19:00')))).toBe('19:00');
+    expect(toChileTimeString(new Date(slotStartsAtIso('2026-07-15', '09:00')))).toBe('09:00');
+  });
+});
 
 describe('slotStartsAtIso / toChileDateString', () => {
   it('vuelve al mismo día y hora local al convertir ida y vuelta', () => {
@@ -59,6 +71,40 @@ describe('weekMondayYmd / weekDaysMonSatYmd / weekdayOf', () => {
   it('calcula el día de la semana sin desfase horario', () => {
     expect(weekdayOf('2026-10-05')).toBe(1); // lunes
     expect(weekdayOf('2026-10-10')).toBe(6); // sábado
+  });
+});
+
+describe('weekDaysMonSunYmd / weekSundayYmd', () => {
+  it('agrega el domingo a la semana lunes-sábado', () => {
+    expect(weekDaysMonSunYmd('2026-10-05')).toEqual([
+      '2026-10-05',
+      '2026-10-06',
+      '2026-10-07',
+      '2026-10-08',
+      '2026-10-09',
+      '2026-10-10',
+      '2026-10-11',
+    ]);
+    expect(weekSundayYmd('2026-10-05')).toBe('2026-10-11');
+  });
+});
+
+describe('todayChileYmd', () => {
+  it('delega en toChileDateString sobre el instante dado', () => {
+    const now = new Date('2026-10-05T23:30:00Z'); // 20:30 en Chile (GMT-3)
+    expect(todayChileYmd(now)).toBe(toChileDateString(now));
+  });
+});
+
+describe('chileDayRange', () => {
+  it('cubre exactamente el día de calendario chileno, exclusivo al final', () => {
+    const [start, end] = chileDayRange('2026-10-05');
+    expect(toChileDateString(start)).toBe('2026-10-05');
+    // El fin es la medianoche del día siguiente: un instante justo antes cae
+    // dentro del día, uno igual o después ya no.
+    expect(isPastSlot(start.toISOString(), new Date(end.getTime() - 1))).toBe(true);
+    expect(toChileDateString(new Date(end.getTime() - 1))).toBe('2026-10-05');
+    expect(toChileDateString(end)).toBe('2026-10-06');
   });
 });
 

@@ -10,15 +10,22 @@ import { Prisma } from '../../generated/prisma/client.js';
  * cierra.
  *
  * Como el índice no está en el esquema, Prisma no puede nombrar la columna en
- * `meta.target` de forma amigable — el nombre del índice es lo único
- * confiable en `target` para un `P2002` disparado por este `INSERT` puntual.
+ * `meta.target` de forma amigable. Con el driver adapter (`@prisma/adapter-pg`)
+ * el nombre del índice no viaja en `meta.target` sino en
+ * `meta.driverAdapterError.cause.constraint.index` — verificado contra
+ * Postgres real en esta versión (`@prisma/adapter-pg@7.10.0`). Se comprueban
+ * ambas formas por si una versión futura del adapter vuelve a mover el dato.
  */
 export function isSlotTakenViolation(err: unknown): boolean {
   if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
   if (err.code !== 'P2002') return false;
 
   const target = err.meta?.target;
-  if (typeof target === 'string') return target.includes('session_active_slot');
-  if (Array.isArray(target)) return target.includes('session_active_slot');
-  return false;
+  if (typeof target === 'string' && target.includes('session_active_slot')) return true;
+  if (Array.isArray(target) && target.includes('session_active_slot')) return true;
+
+  const driverAdapterError = err.meta?.driverAdapterError as
+    | { cause?: { constraint?: { index?: string } } }
+    | undefined;
+  return driverAdapterError?.cause?.constraint?.index === 'session_active_slot';
 }

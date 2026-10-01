@@ -1,5 +1,7 @@
 import {
   canCancelSession,
+  canMarkConfirmed,
+  canMoveSession,
   confirmationDeadlinePassed,
   hasAllRequiredBookingFields,
   HELP_REQUEST_MAX_LENGTH,
@@ -159,5 +161,24 @@ describe('canCancelSession', () => {
     expect(
       canCancelSession({ startsAt: '2026-10-05T13:00:00Z', status: 'NOT_CONFIRMED' }, now),
     ).toBe(false);
+  });
+});
+
+describe('canMoveSession', () => {
+  const now = new Date('2026-10-05T12:00:00Z');
+
+  it('sigue las mismas reglas que canCancelSession', () => {
+    expect(canMoveSession({ startsAt: '2026-10-05T13:00:00Z', status: 'PENDING' }, now)).toBe(true);
+    expect(canMoveSession({ startsAt: '2026-10-05T11:00:00Z', status: 'CONFIRMED' }, now)).toBe(false);
+    expect(canMoveSession({ startsAt: '2026-10-05T13:00:00Z', status: 'CANCELLED' }, now)).toBe(false);
+  });
+});
+
+describe('canMarkConfirmed', () => {
+  it('solo mientras la sesión sigue pendiente', () => {
+    expect(canMarkConfirmed({ startsAt: '2026-10-05T13:00:00Z', status: 'PENDING' })).toBe(true);
+    expect(canMarkConfirmed({ startsAt: '2026-10-05T13:00:00Z', status: 'CONFIRMED' })).toBe(false);
+    expect(canMarkConfirmed({ startsAt: '2026-10-05T13:00:00Z', status: 'CANCELLED' })).toBe(false);
+    expect(canMarkConfirmed({ startsAt: '2026-10-05T13:00:00Z', status: 'NOT_CONFIRMED' })).toBe(false);
   });
 });

@@ -301,6 +301,756 @@
           "sessions"
         ]
       }
+    },
+    "/api/panel/auth/login": {
+      "post": {
+        "operationId": "PanelAuthController_login",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Sesión iniciada."
+          },
+          "400": {
+            "description": "MISSING_FIELDS."
+          },
+          "401": {
+            "description": "INVALID_CREDENTIALS."
+          }
+        },
+        "summary": "Iniciar sesión como educadora",
+        "tags": [
+          "panel-auth"
+        ]
+      }
+    },
+    "/api/panel/auth/logout": {
+      "post": {
+        "operationId": "PanelAuthController_logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Sesión cerrada."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cerrar sesión de la educadora (siempre 204)",
+        "tags": [
+          "panel-auth"
+        ]
+      }
+    },
+    "/api/panel/auth/me": {
+      "get": {
+        "operationId": "PanelAuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Perfil de la educadora."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Perfil de la educadora con sesión activa",
+        "tags": [
+          "panel-auth"
+        ]
+      }
+    },
+    "/api/panel/auth/password": {
+      "post": {
+        "operationId": "PanelAuthController_changePassword",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Clave cambiada; token nuevo."
+          },
+          "400": {
+            "description": "WEAK_PASSWORD."
+          },
+          "401": {
+            "description": "NO_SESSION o INVALID_CREDENTIALS (clave actual incorrecta)."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cambiar la clave de la educadora",
+        "tags": [
+          "panel-auth"
+        ]
+      }
+    },
+    "/api/panel/agenda": {
+      "get": {
+        "operationId": "PanelAgendaController_getWeek",
+        "parameters": [
+          {
+            "name": "weekStart",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "2026-10-05",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Días de la semana con sus cupos."
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: falta weekStart o no es lunes."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Agenda semanal (lunes a domingo) de la educadora",
+        "tags": [
+          "panel-agenda"
+        ]
+      }
+    },
+    "/api/panel/summary": {
+      "get": {
+        "operationId": "PanelDashboardController_get",
+        "parameters": [
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-10-05",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumen del día pedido (hoy por defecto)."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resumen del día para la educadora",
+        "tags": [
+          "panel-summary"
+        ]
+      }
+    },
+    "/api/panel/preferences": {
+      "get": {
+        "operationId": "PanelScheduleController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Preferencias vigentes."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Plantilla semanal y plazos configurables",
+        "tags": [
+          "panel-schedule"
+        ]
+      },
+      "put": {
+        "operationId": "PanelScheduleController_updatePreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Preferencias actualizadas."
+          },
+          "400": {
+            "description": "INVALID_PREFERENCES o INVALID_RANGE."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Actualizar el plazo de confirmación, la antelación de serie y el horizonte de reserva",
+        "tags": [
+          "panel-schedule"
+        ]
+      }
+    },
+    "/api/panel/template": {
+      "put": {
+        "operationId": "PanelScheduleController_replaceTemplate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Plantilla actualizada; las sesiones existentes no se tocan."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reemplazar la plantilla semanal completa",
+        "tags": [
+          "panel-schedule"
+        ]
+      }
+    },
+    "/api/panel/blocks/day": {
+      "post": {
+        "operationId": "PanelScheduleController_blockDay",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Día bloqueado."
+          },
+          "409": {
+            "description": "SLOT_NOT_EMPTY."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Bloquear un día completo (solo si no tiene sesiones activas)",
+        "tags": [
+          "panel-schedule"
+        ]
+      }
+    },
+    "/api/panel/blocks/day/{date}": {
+      "delete": {
+        "operationId": "PanelScheduleController_unblockDay",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Día desbloqueado."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desbloquear un día (204 aunque no estuviera bloqueado)",
+        "tags": [
+          "panel-schedule"
+        ]
+      }
+    },
+    "/api/panel/blocks/slot": {
+      "post": {
+        "operationId": "PanelScheduleController_blockSlot",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Cupo bloqueado."
+          },
+          "409": {
+            "description": "SLOT_NOT_EMPTY."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Bloquear un cupo puntual (solo si está vacío)",
+        "tags": [
+          "panel-schedule"
+        ]
+      }
+    },
+    "/api/panel/blocks/slot/{date}/{time}": {
+      "delete": {
+        "operationId": "PanelScheduleController_unblockSlot",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "time",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cupo desbloqueado."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desbloquear un cupo (204 aunque no estuviera bloqueado)",
+        "tags": [
+          "panel-schedule"
+        ]
+      }
+    },
+    "/api/panel/sessions": {
+      "post": {
+        "operationId": "PanelSessionsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Sesión creada."
+          },
+          "400": {
+            "description": "PAST_SLOT."
+          },
+          "404": {
+            "description": "CHILD_NOT_FOUND."
+          },
+          "409": {
+            "description": "SLOT_BLOCKED o SLOT_TAKEN."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear una cita única",
+        "tags": [
+          "panel-sessions"
+        ]
+      }
+    },
+    "/api/panel/series": {
+      "post": {
+        "operationId": "PanelSessionsController_createSeries",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Serie creada, con las fechas omitidas listadas."
+          },
+          "400": {
+            "description": "SERIES_EMPTY."
+          },
+          "404": {
+            "description": "CHILD_NOT_FOUND."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear una serie semanal, saltando fechas ocupadas o bloqueadas",
+        "tags": [
+          "panel-sessions"
+        ]
+      }
+    },
+    "/api/panel/sessions/{id}/move": {
+      "patch": {
+        "operationId": "PanelSessionsController_move",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sesión movida."
+          },
+          "400": {
+            "description": "PAST_SLOT."
+          },
+          "404": {
+            "description": "SESSION_NOT_FOUND."
+          },
+          "409": {
+            "description": "CANCEL_NOT_ALLOWED, SLOT_BLOCKED o SLOT_TAKEN."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mover una sesión a otro cupo",
+        "tags": [
+          "panel-sessions"
+        ]
+      }
+    },
+    "/api/panel/sessions/{id}/confirm": {
+      "post": {
+        "operationId": "PanelSessionsController_confirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sesión confirmada."
+          },
+          "404": {
+            "description": "SESSION_NOT_FOUND."
+          },
+          "409": {
+            "description": "NOT_PENDING."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Marcar una sesión como confirmada a mano",
+        "tags": [
+          "panel-sessions"
+        ]
+      }
+    },
+    "/api/panel/sessions/{id}/cancel": {
+      "post": {
+        "operationId": "PanelSessionsController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sesión cancelada."
+          },
+          "404": {
+            "description": "SESSION_NOT_FOUND."
+          },
+          "409": {
+            "description": "CANCEL_NOT_ALLOWED."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancelar una sesión",
+        "tags": [
+          "panel-sessions"
+        ]
+      }
+    },
+    "/api/panel/guardians": {
+      "get": {
+        "operationId": "PanelPeopleController_list",
+        "parameters": [
+          {
+            "name": "query",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de apoderados."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar apoderados (con conteo de niños y sesiones activas)",
+        "tags": [
+          "panel-people"
+        ]
+      },
+      "post": {
+        "operationId": "PanelPeopleController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Apoderado creado."
+          },
+          "409": {
+            "description": "GUARDIAN_EXISTS."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear una ficha de apoderado",
+        "tags": [
+          "panel-people"
+        ]
+      }
+    },
+    "/api/panel/guardians/{id}": {
+      "get": {
+        "operationId": "PanelPeopleController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ficha del apoderado."
+          },
+          "404": {
+            "description": "GUARDIAN_NOT_FOUND."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha de un apoderado: sus niños y el histórico de sesiones",
+        "tags": [
+          "panel-people"
+        ]
+      },
+      "patch": {
+        "operationId": "PanelPeopleController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Apoderado actualizado."
+          },
+          "404": {
+            "description": "GUARDIAN_NOT_FOUND."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Actualizar nombre o teléfono de un apoderado",
+        "tags": [
+          "panel-people"
+        ]
+      }
+    },
+    "/api/panel/guardians/{id}/children": {
+      "post": {
+        "operationId": "PanelPeopleController_createChild",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Niño creado."
+          },
+          "404": {
+            "description": "GUARDIAN_NOT_FOUND."
+          },
+          "409": {
+            "description": "CHILD_EXISTS."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Agregar un niño a la ficha de un apoderado (sin rango de edad)",
+        "tags": [
+          "panel-people"
+        ]
+      }
+    },
+    "/api/panel/children/{id}": {
+      "patch": {
+        "operationId": "PanelPeopleController_updateChild",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Niño actualizado."
+          },
+          "404": {
+            "description": "CHILD_NOT_FOUND."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Actualizar nombre o edad de un niño",
+        "tags": [
+          "panel-people"
+        ]
+      }
+    },
+    "/api/panel/events": {
+      "get": {
+        "description": "Emite `event: session` con un `SessionEvent` por cada sesión creada o cambiada, y `event: ping` cada 25 s. No reenvía eventos perdidos: al reconectar, volver a pedir resumen, agenda y notificaciones.",
+        "operationId": "PanelEventsController_stream",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Stream abierto (`text/event-stream`)."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stream en tiempo real de cambios de sesiones (Server-Sent Events)",
+        "tags": [
+          "panel-events"
+        ]
+      }
+    },
+    "/api/panel/notifications": {
+      "get": {
+        "operationId": "PanelNotificationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Hasta 20 avisos recientes y el total de no leídos."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Avisos de la campana: lo que hicieron apoderados o el sistema",
+        "tags": [
+          "panel-notifications"
+        ]
+      }
+    },
+    "/api/panel/notifications/seen": {
+      "post": {
+        "operationId": "PanelNotificationsController_markSeen",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Avisos marcados como vistos."
+          },
+          "401": {
+            "description": "NO_SESSION."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Marcar todos los avisos como vistos",
+        "tags": [
+          "panel-notifications"
+        ]
+      }
     }
   },
   "info": {
@@ -312,6 +1062,13 @@
   "tags": [],
   "servers": [],
   "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
     "schemas": {}
   }
 }
