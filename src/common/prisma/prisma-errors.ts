@@ -29,3 +29,8 @@ export function isSlotTakenViolation(err: unknown): boolean {
     | undefined;
   return driverAdapterError?.cause?.constraint?.index === 'session_active_slot';
 }
+
+/** `P2025`: `update`/`delete` sobre un registro que ya no existe (p. ej. borrado en paralelo). */
+export function isRecordNotFound(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025';
+}

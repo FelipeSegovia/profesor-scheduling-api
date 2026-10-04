@@ -1,0 +1,43 @@
+Estado: en curso
+Última tarea completada: 14
+Siguiente: la spec 006 de `private-profesor-scheduling/` (panel): escribir su `plan.md` y `tasks.md` desde `docs/API.md` de esta app.
+Notas:
+- `spec.md`, `plan.md` y `tasks.md` aprobados por el usuario (2026-10-03). Decisiones: registro simple (fecha, título, texto y sesión opcional), correo opcional por registro, editar y borrar, y esta spec va antes del job de vencimiento (que pasa a 008).
+- Frontend en `private-profesor-scheduling/.specs/006-ficha-clinica/` (spec aprobada; su plan se escribe al cerrar esta).
+- Tarea 1 (spike) cerrada, `@react-pdf/renderer` 4.9.0 funciona sin ajustes:
+  - Verificado: `renderToBuffer` en vitest (`.spec.tsx`), `pnpm lint`, `pnpm build` e importando `dist/panel/clinical-notes/pdf/render-clinical-record.js` desde Node (el buffer empieza con `%PDF`).
+  - `render-clinical-record.tsx` es un documento mínimo; la tarea 6 lo reemplaza por el real.
+- Tarea 2 cerrada:
+  - Migración `20261003110855_clinical_notes` (creada con `--create-only`, SQL revisado y aplicado en dev): tabla `ClinicalNote` (FK `childId` con `RESTRICT`, `sessionId` con `SET NULL`, índice `(childId, date)`) y `OutboxEmail.clinicalNoteId` sin FK. Relaciones inversas `notes` en `Child` y `Session`.
+  - `pnpm prisma generate` corrido. Verificado: `pnpm test` (171), `pnpm test:e2e` (203), `pnpm lint` y `pnpm build`, sin cambios en los tests existentes.
+- Tareas 3 a 6 cerradas (contenido puro, sin Nest ni BD). Verificado: `pnpm lint`, `pnpm build` y los tests de `src/email`, `src/outbox` y `src/panel/clinical-notes`.
+  - `src/email/format.ts`: `formatCalendarDate` ("lunes 5 de octubre") y `formatCalendarDateWithYear` (agrega el año, para el PDF). Se formatean a mediodía UTC, sin pasar por un instante; probado con `TZ` UTC, Tokio, Santiago y Kiritimati. `formatCalendarDateWithYear` no se agregó al plan: el PDF de un historial necesita el año.
+  - Correo `CLINICAL_NOTE`: variante en `EmailMessage`, `templates/clinical-note.tsx` y `case` en `render-email.tsx`. Un párrafo por línea del texto; HTML escapado. El pie dice "conversa con Loreto" y no "responde a este correo", porque `EMAIL_REPLY_TO` es opcional.
+  - `buildClinicalNoteMessage` en `outbox-message.ts`: nota `null` → `skip` (`clinical note deleted`), nota → `send`.
+  - PDF: `clinical-record-document.tsx`, `render-clinical-record.tsx` (`renderClinicalRecord`, `pdfFilename`). Helvetica y Times integradas (no cubren emojis).
+  - **Hallazgo:** con `@react-pdf/renderer` 4.9.0, un registro largo que cruza de página fallaba con `unsupported number: -1.8e21`. Se reproducía solo con pie `fixed` + estilo de página + `lineHeight` en la página + texto con muchos saltos de línea (400 líneas fallaba, 100 no); quitar cualquiera de los tres lo evita. Se resolvió poniendo `lineHeight` en cada texto y no en `page`. Tests de regresión con 60, 400 y 2000 líneas y con 80 registros.
+  - Pendiente para la tarea 13: abrir un PDF real y mirar las tildes y eñes (aquí no hay `pdftotext` ni `pdftoppm`; los tests solo comprueban el prefijo `%PDF`).
+- Tareas 7 a 11 cerradas (outbox, módulo, PDF, `notesCount` y Swagger).
+  - Outbox: `OutboxKind.CLINICAL_NOTE`, `write({ clinicalNoteId })` y rama en `OutboxDispatcherService` (método `decide`). Una fila `CLINICAL_NOTE` sin `clinicalNoteId` o con la nota borrada queda `SKIPPED`, no `FAILED`: no hay nada que reintentar. Comentario de `SKIPPED` actualizado.
+  - Módulo `src/panel/clinical-notes/` registrado en `PANEL_CONTROLLERS` y `providers`. `isRecordNotFound` (P2025) en `src/common/prisma/prisma-errors.ts`. Mensajes `NOTE_NOT_FOUND` y `NOTE_SESSION_MISMATCH` en `panel-messages.ts`.
+  - `update` no acepta `notifyGuardian`: si llega, el esquema Zod lo descarta (no se rechaza) y nunca escribe en el outbox.
+  - `notesCount` va como campo opcional de `PanelChildDto`: solo lo trae `GET /guardians/:id`.
+  - Tests: `test/panel-clinical-notes.e2e-spec.ts` (52 casos: autenticación, CRUD, validación, aislamiento entre niños, correo de punta a punta, PDF, `notesCount`) y 5 casos nuevos en `test/outbox-dispatch.e2e-spec.ts`. Swagger: 5 operaciones nuevas en `swagger-coverage`.
+  - Se corrió por error `prettier --write` sobre todo `src/common` y reformateó `dto.ts`, `messages.ts` (contrato congelado) y `prisma-errors.spec.ts`; se restauraron con `git checkout` y se reaplicaron solo los dos cambios reales (`panel-messages.ts` y `prisma-errors.ts`). `git diff src/common` muestra solo esos dos archivos.
+- Tarea 12 cerrada: `docs/API.md` (45 rutas, sección "Ficha clínica", fila en "Correos") y `docs/openapi.json` regenerado (solo adiciones: las 5 operaciones nuevas, sin cambios en las existentes; el 200 del PDF declara `application/pdf` binario). `CLAUDE.md` de la app y de la raíz, `docs/mvp/REQUERIMIENTOS_FUNCIONALES.md` (sección "Ficha clínica" y correo al apoderado), `AGENTS_PRIVATE.md`, `AGENTS_PUBLIC.md` y `AGENTS.md`/`CLAUDE.md` del panel. El job de vencimiento queda como 008.
+- Tarea 13 cerrada. Verificado: `pnpm lint`, `pnpm build`, `pnpm test` (190) y `pnpm test:e2e` (265).
+  - Prueba manual contra `dist/main` en el puerto 3057, **con `RESEND_API_KEY=""` forzada** (el `.env` del usuario tiene una clave real y habría enviado correos de verdad) y contra la base `agendamientos_test`, no la de desarrollo:
+    - Login, apoderado, niño y dos registros (uno con correo y otro sin): salió un solo correo, con tildes, eñes y la fecha "lunes 28 de septiembre".
+    - Editar con `notifyGuardian: true` en el body: no mandó correo y `guardianNotified` siguió en `false`.
+    - Borrar: 204, y el segundo borrado 404 `NOTE_NOT_FOUND`. `notesCount` bajó de 3 a 2.
+    - Sin token: 401 `NO_SESSION`.
+    - PDF: 200, `application/pdf`, `ficha-tomas-nunez-2026-10-03.pdf`. Se abrió como imagen (`sips`): encabezado, registros en orden cronológico, tildes/`ñ`/`ü` correctas y pie con "Página 1 de 1". Un registro de 120 líneas dio un PDF de 5 páginas.
+  - No se hizo commit: queda todo en el árbol de trabajo (junto con lo pendiente de la 006).
+- Corrección posterior (2026-10-03), al verificar el panel contra la API real: el navegador no dejaba leer `Content-Disposition` entre orígenes, así que el panel no veía el `filename` del PDF. Se agregó `src/common/cors.ts` (`buildCorsOptions`, con `exposedHeaders: ['Content-Disposition']`), usado por `main.ts`, con test unitario, y una línea en `docs/API.md` y `CLAUDE.md`. El test e2e no lo cubre (`createTestApp` no activa CORS); se verificó con el panel real y con `curl` (`Access-Control-Expose-Headers: Content-Disposition`).
+- Tarea 14 cerrada (2026-10-03), enmienda de la spec §4 a pedido de la usuaria: plantilla del PDF al estilo de una hoja escolar "Plan de clase".
+  - Decisiones: encabezado con Nombre, Educadora, Edad y Fecha (de exportación); el contacto del apoderado sigue, en una línea discreta; DM Sans + Newsreader; dibujos vectoriales simples (corazón, estrella, lápiz) y marco ondulado, sin imágenes.
+  - Fuentes estáticas bajadas de Google Fonts (CSS API, `truetype`) a `assets/fonts/`, con `OFL-DMSans.txt` y `OFL-Newsreader.txt`. Se resuelven igual desde `src/` (vitest) y `dist/` (verificado importando el render desde `dist`). `assets/` debe ir en el despliegue.
+  - «Educadora» y el pie usan `Educator.name` de la sesión (`@CurrentEducator()` en la ruta del PDF), ya no "Loreto Castillo" fijo.
+  - **Hallazgo:** en `@react-pdf/renderer` 4.9 un `lineHeight` sin unidad se calcula sobre el `fontSize` del mismo estilo o, si falta, sobre 18 pt (el por defecto), no sobre el heredado de `page`. El texto de los registros tenía 27 pt de interlineado en vez de 15,75 (también con Helvetica, desde la tarea 6). Se corrigió poniendo `fontSize` junto a cada `lineHeight`; test de regresión que cuenta páginas (120 líneas = 4 páginas; con el error eran 6).
+  - Verificado: `pnpm lint`, `pnpm build`, `pnpm test` (194) y el e2e `panel-clinical-notes` (52). Revisión visual de PDFs reales pasados a PNG con PDFKit (`swift`): sin registros, 3 registros con tildes/ñ/ü y un registro de 120 líneas en 4 páginas (marco y lápiz en todas, cabecera sin cortarse).
+  - Prueba manual contra `dist/main` en el puerto 3057, con `RESEND_API_KEY=""` y la base `agendamientos_test`: 200, `application/pdf`, mismo `filename`, y con la educadora renombrada en la base el PDF mostró el nombre nuevo (se restauró después).

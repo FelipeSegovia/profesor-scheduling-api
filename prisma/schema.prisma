@@ -78,7 +78,7 @@ model Guardian {
 /// debe estar entre 3 y 13 inclusive (validado en el dominio, no acá); desde el
 /// panel la educadora puede guardar una edad fuera de ese rango.
 model Child {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   guardianId String
   guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
 
@@ -90,6 +90,7 @@ model Child {
 
   sessions Session[]
   series   Series[]
+  notes    ClinicalNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -111,7 +112,7 @@ model Session {
   guardian   Guardian @relation(fields: [guardianId], references: [id], onDelete: Restrict)
 
   /// Instante UTC de inicio del cupo. Duración fija de 1 hora (no se guarda fin).
-  startsAt DateTime @db.Timestamptz(3)
+  startsAt DateTime      @db.Timestamptz(3)
   status   SessionStatus
 
   confirmToken String @unique
@@ -124,6 +125,8 @@ model Session {
   /// Presente si esta sesión pertenece a una serie semanal.
   seriesId String?
   series   Series? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+
+  notes ClinicalNote[]
 
   /// Quién creó esta sesión (apoderado, educadora o el sistema).
   createdBy Actor
@@ -252,24 +255,63 @@ model PasswordReset {
 }
 
 /// Bandeja de salida de correos: se escribe en la misma transacción que el
-/// cambio de estado que la origina, y un job aparte la despacha con reintentos.
-/// Así un fallo del proveedor de correo nunca revierte una reserva.
+/// cambio de estado que la origina, y `OutboxDispatcherService` la despacha
+/// con reintentos (spec 006). Así un fallo del proveedor de correo nunca
+/// revierte una reserva.
 model OutboxEmail {
   id String @id @default(cuid())
 
-  sessionId String?
+  sessionId      String?
+  /// Registro de la ficha clínica que origina el correo (`CLINICAL_NOTE`, spec
+  /// 007). Sin FK, igual que `sessionId`: borrar la nota no debe romper la
+  /// fila; el despachador la deja `SKIPPED`.
+  clinicalNoteId String?
 
   /// Tipo de correo (identificador en inglés; el contenido es en español).
   /// Ej.: BOOKING_PENDING, BOOKING_CONFIRMED, CONFIRMED, CANCELLED,
-  /// RESCHEDULED, RELEASED, GUARDIAN_CONFIRMED, GUARDIAN_CANCELLED.
+  /// RESCHEDULED, GUARDIAN_CONFIRMED, GUARDIAN_CANCELLED, SYSTEM_CONFIRMED,
+  /// CLINICAL_NOTE.
+  /// RELEASED queda para el job de vencimiento.
   kind      String
   recipient String
-  status    String @default("PENDING")
-  attempts  Int    @default(0)
+  /// PENDING | SENT | FAILED | SKIPPED (ver `OutboxStatus`).
+  status    String  @default("PENDING")
+  attempts  Int     @default(0)
   error     String?
+
+  /// Desde cuándo se puede (re)intentar el envío; sube con el backoff.
+  nextAttemptAt DateTime @default(now())
+  /// Id del correo en el proveedor (Resend). Null con el transporte de consola.
+  providerId    String?
 
   createdAt DateTime  @default(now())
   sentAt    DateTime?
 
-  @@index([status])
+  @@index([status, nextAttemptAt])
+}
+
+/// Registro de la ficha clínica de un niño, escrito por la educadora (spec
+/// 007). `date` es el día del trabajo (Chile), no un instante: usar
+/// `chileDateToColumn`/`columnToChileDate` de `src/domain/time.ts`.
+model ClinicalNote {
+  id String @id @default(cuid())
+
+  childId String
+  child   Child  @relation(fields: [childId], references: [id], onDelete: Restrict)
+
+  date  DateTime @db.Date
+  title String
+  body  String
+
+  /// Sesión de la agenda a la que corresponde, opcional. Del mismo niño.
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  /// Se pidió enviar el registro al apoderado al crearlo.
+  guardianNotified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([childId, date])
 }

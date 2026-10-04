@@ -19,9 +19,11 @@ import { PanelScheduleController } from './schedule/panel-schedule.controller.js
 import { PanelScheduleService } from './schedule/panel-schedule.service.js';
 import { PanelSessionsController } from './sessions/panel-sessions.controller.js';
 import { PanelSessionsService } from './sessions/panel-sessions.service.js';
+import { PanelClinicalNotesController } from './clinical-notes/panel-clinical-notes.controller.js';
+import { PanelClinicalNotesService } from './clinical-notes/panel-clinical-notes.service.js';
 import { PanelPeopleController } from './people/panel-people.controller.js';
 import { PanelPeopleService } from './people/panel-people.service.js';
-import { OutboxService } from '../outbox/outbox.service.js';
+import { OutboxModule } from '../outbox/outbox.module.js';
 
 /**
  * Panel de la educadora (`/api/panel/*`). Módulo independiente de `AuthModule`
@@ -36,6 +38,7 @@ const PANEL_CONTROLLERS = [
   PanelScheduleController,
   PanelSessionsController,
   PanelPeopleController,
+  PanelClinicalNotesController,
   PanelEventsController,
   PanelNotificationsController,
 ];
@@ -43,6 +46,7 @@ const PANEL_CONTROLLERS = [
 @Module({
   imports: [
     SlotsModule,
+    OutboxModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => ({
@@ -62,8 +66,8 @@ const PANEL_CONTROLLERS = [
     PanelScheduleService,
     PanelSessionsService,
     PanelPeopleService,
+    PanelClinicalNotesService,
     PanelNotificationsService,
-    OutboxService,
   ],
 })
 export class PanelModule implements NestModule {

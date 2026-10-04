@@ -85,6 +85,11 @@ describe('Swagger coverage — reserva pública y panel de la educadora (e2e)', 
     { path: '/api/panel/guardians/{id}', method: 'patch', tag: 'panel-people' },
     { path: '/api/panel/guardians/{id}/children', method: 'post', tag: 'panel-people' },
     { path: '/api/panel/children/{id}', method: 'patch', tag: 'panel-people' },
+    { path: '/api/panel/children/{id}/notes', method: 'get', tag: 'panel-clinical-notes' },
+    { path: '/api/panel/children/{id}/notes', method: 'post', tag: 'panel-clinical-notes' },
+    { path: '/api/panel/children/{id}/notes.pdf', method: 'get', tag: 'panel-clinical-notes' },
+    { path: '/api/panel/notes/{id}', method: 'patch', tag: 'panel-clinical-notes' },
+    { path: '/api/panel/notes/{id}', method: 'delete', tag: 'panel-clinical-notes' },
   ];
 
   it.each(expectedOperations)(

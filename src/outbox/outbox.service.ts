@@ -17,23 +17,53 @@ export const OutboxKind = {
   GUARDIAN_CONFIRMED: 'GUARDIAN_CONFIRMED',
   /** A la educadora, cuando el apoderado cancela (enlace o vencimiento) (spec 004). */
   GUARDIAN_CANCELLED: 'GUARDIAN_CANCELLED',
+  /**
+   * A la educadora, cuando una reserva pública nace confirmada porque el plazo
+   * ya había vencido (spec 006, requisito 7).
+   */
+  SYSTEM_CONFIRMED: 'SYSTEM_CONFIRMED',
+  /**
+   * Al apoderado, cuando la educadora agrega un registro a la ficha de su niño
+   * y pide enviarlo (spec 007). La fila lleva `clinicalNoteId`, no `sessionId`.
+   */
+  CLINICAL_NOTE: 'CLINICAL_NOTE',
 } as const;
 
 export type OutboxKindValue = (typeof OutboxKind)[keyof typeof OutboxKind];
 
 /**
+ * Estados de una fila (spec 006). `PENDING` espera envío o reintento según
+ * `nextAttemptAt`; `SKIPPED` es un correo que ya no tiene sentido mandar: al
+ * apoderado de una cita que ya ocurrió o quedó sin efecto, o de un registro de
+ * la ficha clínica que la educadora borró antes del envío.
+ */
+export const OutboxStatus = {
+  PENDING: 'PENDING',
+  SENT: 'SENT',
+  FAILED: 'FAILED',
+  SKIPPED: 'SKIPPED',
+} as const;
+
+export type OutboxStatusValue =
+  (typeof OutboxStatus)[keyof typeof OutboxStatus];
+
+/**
  * Solo hace `INSERT` en `OutboxEmail`, dentro de la misma transacción que el
  * cambio de estado que lo origina — así un fallo del proveedor de correo
- * (spec futura) nunca revierte una reserva. Ningún proceso despacha estas
- * filas todavía: eso es la spec de "vencimiento de confirmación con su job".
- * Ver `.specs/003-reserva-publica/spec.md`, sección "Fuera de alcance".
+ * nunca revierte una reserva. `OutboxDispatcherService` despacha las filas
+ * después (spec 006).
  */
 @Injectable()
 export class OutboxService {
   constructor(private readonly prisma: PrismaService) {}
 
   async write(
-    params: { kind: OutboxKindValue; recipient: string; sessionId?: string },
+    params: {
+      kind: OutboxKindValue;
+      recipient: string;
+      sessionId?: string;
+      clinicalNoteId?: string;
+    },
     tx: Pick<Prisma.TransactionClient, 'outboxEmail'> = this.prisma,
   ): Promise<void> {
     await tx.outboxEmail.create({
@@ -41,6 +71,7 @@ export class OutboxService {
         kind: params.kind,
         recipient: params.recipient,
         sessionId: params.sessionId,
+        clinicalNoteId: params.clinicalNoteId,
       },
     });
   }

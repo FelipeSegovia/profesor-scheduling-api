@@ -1,0 +1,100 @@
+Estado: en curso
+Última tarea completada: 12
+Siguiente: tarea 13 (cierre y prueba manual con Resend). Bloqueada hasta que el usuario verifique `orbitalstudio.cl` en Resend.
+Notas:
+- spec.md, plan.md y tasks.md aprobados por el usuario (2026-10-01), con el requisito 7 incluido: correo `SYSTEM_CONFIRMED` a la educadora cuando una reserva pública nace confirmada.
+- Plan general en `~/.claude/plans/crea-un-plan-para-adaptive-possum.md`. Alcance: despachador del outbox + reset de clave. El job de vencimiento (`NOT_CONFIRMED`/`RELEASED`) y los correos de serie a la antelación configurada quedan para la spec siguiente.
+- `.env.example` ya documenta `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_REDIRECT_TO` y `OUTBOX_POLL_INTERVAL_MS`. Siguen comentadas hasta la tarea 2.
+- Pendiente fuera del código: el dominio verificado en Resend y la dirección del remitente de producción. No bloquea; en desarrollo se usa `onboarding@resend.dev` con `EMAIL_REDIRECT_TO`.
+- La prueba manual de la tarea 13 necesita una `RESEND_API_KEY` real del usuario en `.env`.
+- Tarea 1 (spike) cerrada, React Email funciona con ESM y `nest build` sin ajustes extra:
+  - Versiones instaladas: `resend` 6.31.0, `@react-email/components` 1.0.12, `@react-email/render` 2.1.0, `react`/`react-dom` 19.3.0, `@nestjs/schedule` 12.0.2, `@types/react`/`@types/react-dom` 19.3.0.
+  - `tsconfig.json`: `"jsx": "react-jsx"`. `vitest.config.ts`: incluye `**/*.spec.tsx`. `tsconfig.build.json`: excluye `**/*spec.tsx` (sin eso, el test se compilaba en `dist/`).
+  - `src/email/templates/layout.tsx` y un `src/email/render-email.tsx` mínimo (`{ subject, body }`), con `render-email.spec.tsx`. La tarea 4 lo reemplaza por la unión `EmailMessage`.
+  - Verificado: `pnpm test` (118), `pnpm lint` (se comprobó con un archivo de prueba que oxlint sí revisa `.tsx`), `pnpm build`, `node` importando `dist/email/render-email.js` y renderizando, y `node dist/main` arrancando en el puerto 3011 (`/api/health` ok).
+  - La app todavía no importa la plantilla desde ningún módulo; eso llega con la tarea 5.
+- `pnpm add` terminaba con `ERR_PNPM_IGNORED_BUILDS` por `@scarf/scarf` (telemetría de `swagger-ui-dist`, vía `@nestjs/swagger`); el placeholder ya estaba en `pnpm-workspace.yaml` antes de esta spec. Por decisión del usuario quedó `'@scarf/scarf': false` (sin telemetría).
+- Tarea 2 cerrada:
+  - `src/config/env.ts`: helper `optional()` (vacía = no configurada) para `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO` (email) y `EMAIL_REDIRECT_TO` (email); `OUTBOX_POLL_INTERVAL_MS` (≥ 1000, por defecto 15000); `superRefine` con tres reglas: key sin `EMAIL_FROM`, producción sin key y producción con redirect.
+  - `src/config/env.spec.ts`: 7 casos.
+  - `.env.test.example`: agregados `EDUCATOR_JWT_SECRET`/`EDUCATOR_JWT_EXPIRES_IN` y la nota de que no lleva `RESEND_API_KEY`. `.env.example`: "en producción es obligatoria".
+  - Verificado: `pnpm test` (125), `pnpm test:e2e` (190, sin cambios en los existentes), `pnpm lint` y `pnpm build`.
+  - Los archivos nuevos o tocados de la 006 quedaron formateados con prettier. `prettier --check` sobre todo el repo marca ~80 archivos anteriores a esta spec; no se tocaron.
+- Tarea 3 cerrada:
+  - `src/email/format.ts`: `formatSessionDate` ("lunes 5 de octubre") y `formatSessionDateTime` ("lunes 5 de octubre, 19:00"), con `TIMEZONE` de `src/domain/time.ts` y locale `es`. Tests: horario de verano (UTC-3), de invierno (UTC-4) y cambio de día respecto de UTC. Pasan también con `TZ=UTC` y `TZ=Asia/Tokyo`: no dependen de la zona del proceso.
+  - `src/email/email-links.ts`: `confirmUrl`, `cancelUrl` y `resetPasswordUrl`. Concatena en vez de usar `new URL(path, base)`, que descartaría una subruta de `PUBLIC_WEB_URL`. Codifica el token.
+  - `src/email/redirect.ts`: `applyRedirect(email, redirectTo)`, genérico sobre `{ to, subject }`.
+  - Verificado: `pnpm test` (134), `pnpm lint` y `pnpm build`.
+- Tarea 4 cerrada:
+  - `src/email/email-message.ts`: unión `EmailMessage` (9 kinds). **Sin `to`**, a diferencia del borrador del plan: el destinatario lo fija quien envía (`OutboxEmail.recipient`), así `renderEmail` solo depende del contenido.
+  - Cada `kind` es su propia variante (helper `WithKind`). Con `kind: 'A' | 'B'` en una sola variante, `Extract<EmailMessage, { kind: 'A' }>` daba `never` y las props de `BookingConfirmed`/`Confirmed` quedaban sin tipo; lo detectó `restrict-template-expressions` del lint.
+  - Plantillas en `src/email/templates/`: `booking-pending`, `booking-confirmed`, `confirmed`, `cancelled`, `rescheduled`, `password-reset` y **una sola** `educator-notice` para `GUARDIAN_CONFIRMED`, `GUARDIAN_CANCELLED` y `SYSTEM_CONFIRMED` (el plan listaba un archivo por kind; solo cambian título y frase). Piezas comunes en `parts.tsx` (`Title`, `Paragraph`, `Small`, `SessionActions`, `FallbackLink`).
+  - `render-email.tsx`: `switch` exhaustivo (un kind sin plantilla no compila). Botones Confirmo / No puedo en `Row`/`Column` con `data-text-block`, más un selector de `html-to-text` (`td[data-text-block]` → `block`): sin eso, la versión texto pegaba los dos enlaces en una línea.
+  - `render-email.spec.tsx`: 16 casos. Cubre asunto y fecha en hora de Chile por kind, enlaces en HTML y en texto (un botón por línea), `RESCHEDULED` con y sin confirmar, correos a la educadora con el nombre del apoderado, que un correo al apoderado ignore datos de más pasados saltándose los tipos, escape de HTML en nombres y reset con su vencimiento.
+  - Verificado: `pnpm test` (149), `pnpm lint` sin warnings, `pnpm build` y render desde `dist/` con Node.
+- Vista previa de las plantillas (pedida por el usuario entre las tareas 4 y 5): artifact privado https://claude.ai/artifact/2Lm3A9HxmN2jqA3XBvVwLN, generado desde `dist/email/render-email.js` con datos de ejemplo. Los 10 casos (9 kinds, `RESCHEDULED` en sus dos variantes) se pueden ver en HTML o en texto plano, a ancho de escritorio o de teléfono. No es parte del repo; para regenerarlo hay que volver a renderizar las plantillas.
+- Tarea 5 cerrada:
+  - `src/email/email-sender.ts`: `OutgoingEmail`, `EmailSender` y `EMAIL_SENDER` (Symbol).
+  - `src/email/resend-email.sender.ts`: recibe solo `emails` del cliente de Resend (testeable sin red). Manda `from`, `replyTo`, `text` y `html`, pasa la `idempotencyKey` como opción, aplica `applyRedirect` y convierte `{ error }` en excepción (`Resend <name>: <message>`).
+  - `src/email/console-email.sender.ts`: escribe en el log destinatario, asunto y texto.
+  - `src/email/email.module.ts`: `@Global()`, con un factory que elige el sender según `RESEND_API_KEY`. Avisa en el log qué transporte quedó, y lanza un `warn` si `EMAIL_REDIRECT_TO` está activo. Importado en `AppModule`.
+  - `resend-email.sender.spec.ts`: 4 casos (payload e idempotencia, sin idempotencia, redirect, error de la API).
+  - Verificado: `pnpm test` (153), `pnpm test:e2e` (190, sin cambios en los existentes), `pnpm lint` sin warnings, `pnpm build`. `dist/main` arrancó en el puerto 3011 con los dos transportes: sin key usa consola, y con key falsa + redirect usa Resend con el aviso. No se hizo ningún envío real.
+- Paleta de los correos (pedida por el usuario después de la tarea 5):
+  - `src/email/templates/theme.ts` copia el tema claro común a los dos frontends (`:root` de ambos `src/index.css`): fondo `#fff2eb`, tarjeta `#fffbfa`, texto `#4a2430`, primario `#8e3048`, secundario `#ffebef`, atenuado `#7d5560`, borde `#fed8d2` y radio 14px. Sin modo oscuro: en correo es poco fiable.
+  - Tipografía: DM Sans (texto) y Newsreader (títulos y nombre de la educadora), cargadas con el `<link>` de Google Fonts. Gmail y Outlook lo quitan y usan el respaldo (Helvetica/Arial y Georgia).
+  - `layout.tsx`: tarjeta con borde sobre fondo crema, encabezado "Loreto Castillo" en serif más "Educadora diferencial" atenuado. `parts.tsx`: Confirmo en primario, No puedo en secundario con borde, enlaces en primario, y un `PrimaryButton` nuevo que usa `password-reset.tsx`.
+  - Ningún color quedó escrito fuera de `theme.ts`. El test de plantillas comprueba el encabezado nuevo y el fondo de la paleta.
+  - Galería republicada (versión 2) con la misma paleta.
+- Tarea 6 cerrada:
+  - Migración `20261002022811_outbox_dispatch`: `nextAttemptAt` (`NOT NULL DEFAULT CURRENT_TIMESTAMP`), `providerId` e índice `(status, nextAttemptAt)` en lugar de `(status)`. Se creó con `--create-only` y se revisó el SQL antes de aplicarla: no trajo cambios ajenos. Aplicada en dev; la base de test la migra `global-setup`. Cliente regenerado con `pnpm prisma generate`.
+  - Comentario del modelo `OutboxEmail` actualizado: quién despacha, estados, `SYSTEM_CONFIRMED` y que `RELEASED` queda para el job de vencimiento.
+  - Verificado: `pnpm build`, `pnpm lint` sin warnings, `pnpm test` (153) y `pnpm test:e2e` (190).
+  - **Ojo para la prueba manual**: la base de desarrollo tiene 18 filas `PENDING` (4 destinatarios) de pruebas anteriores, todas con `nextAttemptAt = now()`. En cuanto exista el despachador (tarea 9), el primer ciclo las procesa. Con el transporte de consola solo van al log, pero con `RESEND_API_KEY` saldrían de verdad salvo que esté `EMAIL_REDIRECT_TO`. Decidir con el usuario antes de la tarea 13 si se marcan `SKIPPED` o se borran.
+- Tarea 7 cerrada:
+  - `src/outbox/outbox.module.ts` provee y exporta `OutboxService`. `BookingsModule` y `PanelModule` lo importan en vez de proveerlo cada uno.
+  - `outbox.service.ts`: `OutboxKind.SYSTEM_CONFIRMED` y `OutboxStatus` (`PENDING | SENT | FAILED | SKIPPED`) con su tipo `OutboxStatusValue`.
+  - Verificado: `pnpm build`, `pnpm lint` sin warnings, `pnpm test` (153) y `pnpm test:e2e` (190, sin cambios en los existentes).
+- **Formato**: el `.prettierrc` usa el ancho por defecto (80), pero el código existente está escrito a ~100 columnas sin pasar por prettier. Criterio desde esta tarea: los archivos nuevos de la 006 se formatean con prettier, y en los existentes solo se tocan las líneas que cambian, con el estilo del archivo. Por eso se revirtió el reformateo que prettier había hecho en `app.module.ts` (bloque de Observe) y en `env.ts`, que se rehízo sobre el original: el diff de esos archivos ya solo trae lo de la spec. El script `pnpm format` ahora también cubre `src/**/*.tsx`.
+- Tarea 8 cerrada:
+  - `src/outbox/retry.ts`: `RETRY_DELAYS_MIN = [1, 5, 15, 60]`, `MAX_ATTEMPTS = 5` y `nextAttempt(attempts, now)`, donde `attempts` incluye el intento que acaba de fallar. Del 1.º al 4.º fallo deja `PENDING` con su espera; desde el 5.º, `FAILED`.
+  - `src/outbox/outbox-message.ts`: `buildMessage(kind, session, ctx)` devuelve `send | skip | fail`. Usa `SessionForEmail`, un tipo local que no depende de Prisma, para seguir siendo puro. Calcula `confirmBy = startsAt − confirmationDeadlineHours`, y `RESCHEDULED` lleva `confirmUrl` solo si la sesión está `PENDING`. Sin sesión o con un kind desconocido (por ejemplo `RELEASED`) devuelve `fail`.
+  - **Regla nueva, no estaba en el plan aprobado (anotada en `spec.md` §4):** los correos al apoderado que invitan a asistir (`BOOKING_PENDING`, `BOOKING_CONFIRMED`, `CONFIRMED`, `RESCHEDULED`) se omiten si la sesión ya está `CANCELLED` o `NOT_CONFIRMED` al enviar, porque sus enlaces ya no sirven. `CANCELLED` se envía igual. El "ya empezó" usa `startsAt <= now` y solo aplica a correos al apoderado: los avisos a la educadora salen igual.
+  - Tests: `retry.spec.ts` (5) y `outbox-message.spec.ts` (12). Verificado: `pnpm test` (170), `pnpm lint` sin warnings y `pnpm build`.
+- Tarea 9 cerrada:
+  - `src/outbox/outbox-dispatcher.service.ts`: `dispatchOnce(now)` toma hasta 20 filas `PENDING` con `nextAttemptAt <= now` por `createdAt` y las procesa en serie, cada una con su propio `try/catch`. Devuelve `{ sent, retried, failed, skipped }`.
+    - Por fila: carga sesión, niño y apoderado, decide con `buildMessage`, renderiza con `renderEmail` y envía a `row.recipient` con `idempotencyKey = row.id`.
+    - Lee `Preferences` una vez por ciclo; sin fila usa 24 h.
+    - `attempts` sube en cada intento real (envío o fallo); en `SKIPPED` no sube.
+  - Intervalo con `SchedulerRegistry.addInterval('outbox-dispatch', …)` en `onModuleInit`, salvo con `NODE_ENV=test`, y flag `running` para no solapar ciclos. Solo deja log si el ciclo procesó algo. `ScheduleModule.forRoot()` está en `AppModule`, y el despachador en `OutboxModule`.
+  - `test/helpers/fake-email-sender.ts` (`sent`, `failNext(n)`, `reset()`) y `createTestApp({ emailSender })` con `overrideProvider(EMAIL_SENDER)`. Sin argumento se comporta igual que antes.
+  - `test/outbox-dispatch.e2e-spec.ts`, 7 casos: intervalo no registrado en test; reserva → `SENT` con los dos enlaces, `idempotencyKey` y sin reenvío; confirmar por enlace → correo al apoderado y a la educadora; backoff de 1 min, fila no tomada antes de la espera y `FAILED` al 5.º fallo; lote que sigue tras un fallo; cita pasada → `SKIPPED` sin llamar al sender; fila sin sesión → `FAILED`. Las fechas son relativas a hoy (lunes de la semana siguiente), no fijas.
+  - Verificado: `pnpm test` (170), `pnpm test:e2e` (197 en 18 archivos; los 190 anteriores sin cambios), `pnpm lint` sin warnings y `pnpm build`.
+  - Prueba del intervalo real: `dist/main` en el puerto 3011 **contra la base de test** (para no despachar las 18 filas pendientes de la base de desarrollo), con `OUTBOX_POLL_INTERVAL_MS=1000` y transporte de consola. Una reserva por HTTP salió al log en ~1 s con los dos enlaces, y la fila quedó `SENT` con `providerId` nulo. La base de test se dejó vacía después.
+- Tarea 10 cerrada:
+  - `BookingsService.createBooking`: si la reserva nace `CONFIRMED`, la misma transacción escribe `SYSTEM_CONFIRMED` a la educadora (`tx.educator.findFirst()`; sin educadora no escribe nada). `PanelSessionsService` no se tocó.
+  - 3 casos nuevos en `test/outbox-dispatch.e2e-spec.ts`:
+    - una reserva pública que nace confirmada deja `BOOKING_CONFIRMED` al apoderado y `SYSTEM_CONFIRMED` a la educadora, y el despacho manda "Nueva sesión confirmada: Sofía…";
+    - una que nace pendiente deja solo `BOOKING_PENDING`;
+    - una cita confirmada creada desde el panel deja solo `BOOKING_CONFIRMED` al apoderado.
+  - Se comprobó que el primer caso falla sin el cambio en `BookingsService` (con `git stash` del archivo) y pasa con él.
+  - Verificado: `pnpm test` (170), `pnpm test:e2e` (200 en 18 archivos; `test/bookings.e2e-spec.ts` sin modificar y en verde, incluido "nace CONFIRMED" sin educadora), `pnpm lint` sin warnings y `pnpm build`.
+- Tarea 11 cerrada:
+  - `AuthService.forgot`: después de crear el `PasswordReset`, `void this.sendResetEmail(...).catch(log)`. Arma un mensaje `PASSWORD_RESET` con `resetPasswordUrl(PUBLIC_WEB_URL, token)` y `expiresInMinutes = RESET_TTL_MS / 60000` (60) y lo envía por `EMAIL_SENDER`, sin `idempotencyKey`. No pasa por el outbox (el token en claro no se guarda) ni se espera. La respuesta no cambia: `{ ok: true }`, más `devResetToken` fuera de producción.
+  - 3 casos nuevos en `test/outbox-dispatch.e2e-spec.ts`: con cuenta llega el enlace `/cuenta/restablecer/<devResetToken>` (vía `vi.waitFor`) sin filas en el outbox; sin cuenta no hay envío y la respuesta es `{ ok: true }`; si el envío falla, la respuesta es la misma, el error queda en el log de `AuthService` y no hay rechazo de promesa sin manejar.
+  - Verificado: `pnpm test` (170), `pnpm test:e2e` (203 en 18 archivos; `test/auth.e2e-spec.ts` sin modificar y en verde), `pnpm lint` sin warnings y `pnpm build`.
+  - Diferencia de tiempo que ya existía: con cuenta, `forgot` además escribe el `PasswordReset` en la base. Esta tarea no la agranda, porque el envío no se espera.
+- Tarea 12 cerrada:
+  - `docs/API.md`: sección nueva "Correos (spec 006)", con una tabla de qué correo dispara cada endpoint (apoderado / educadora), los enlaces y a qué endpoint llevan, el envío en segundo plano y las reglas de omisión. También se ajustaron "Estado" (la 006 no agrega rutas), la fila de `confirm/{token}` y "Qué no hay todavía": solo quedan el job de vencimiento y los correos de serie a su antelación.
+  - `pnpm docs:openapi` corrió y `docs/openapi.json` quedó **sin diff**: el contrato no cambió.
+  - `CLAUDE.md` de la app: la 006 en la intro y en el flujo SDD (en curso), un párrafo de qué escribe correo a la educadora (agrega `SYSTEM_CONFIRMED`, y ya no dice que falta el despachador), una viñeta "Correo" en arquitectura (transportes, `EMAIL_REDIRECT_TO`, plantillas, outbox, estados, backoff, un proceso y reset sin outbox), tests `.spec.tsx` y el orden acordado (sigue el job de vencimiento con los correos de serie).
+  - Comentario de `OutboxService` actualizado: ya no dice que nadie despacha.
+  - `../CLAUDE.md` (raíz, sin git): una viñeta "Correos reales" en la hoja de ruta, con la advertencia de que las rutas `/sesion/:token/…` y `/cuenta/restablecer/:token` del front público no deben cambiar sin tocar `email-links.ts`.
+  - `../docs/mvp/` y los `AGENTS*.md` no se tocaron: no hay regla de negocio nueva. El requisito 7 ya era canónico, y las reglas de `SKIPPED` son de implementación del envío.
+  - Verificado: `pnpm build`, `pnpm lint` sin warnings, `pnpm test` (170) y los e2e de Swagger (`swagger-coverage` y `swagger`, 39).
+- Tarea 13, en espera:
+  - Las 18 filas `PENDING` de la base de desarrollo ya las había procesado el servidor de desarrollo del usuario (`nest start --watch`, puerto 3000), que se recargó con el código nuevo **con el transporte de consola**: 11 `SENT` sin `providerId` (solo al log; ningún correo salió de verdad), 3 `FAILED` (`session not found`) y 4 `SKIPPED` (cita pasada o sesión cancelada). Por decisión del usuario, las 11 `SENT` pasaron a `SKIPPED`, con `sentAt` en null y una nota en `error`. Quedan 15 `SKIPPED` y 3 `FAILED`.
+  - `.env` del usuario: se corrigieron dos errores de formato con un respaldo previo (línea 40, un comentario sin `#` que rompía `docker compose`; espacio final en `EMAIL_REDIRECT_TO`). Los valores no se tocaron.
+  - Remitente: Resend no envía desde Gmail. El usuario va a verificar un dominio y ya dejó `EMAIL_FROM=contacto@orbitalstudio.cl`. **La prueba manual espera esa verificación.**
+  - En el `.env` actual quedó `EMAIL_REDIRECT_TO` con el Gmail de la educadora y **no hay** `EMAIL_REPLY_TO` (el usuario dijo haber modificado `EMAIL_REPLY_TO`). Confirmar con el usuario si esa era la intención antes de probar.
+  - Riesgo mientras tanto: si el servidor de desarrollo se reinicia, toma la `RESEND_API_KEY` y empieza a enviar por Resend. Mientras el dominio no esté verificado, cada envío falla (403) y la fila se reintenta hasta quedar `FAILED` (~81 min).

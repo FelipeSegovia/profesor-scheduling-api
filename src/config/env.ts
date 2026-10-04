@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
 /**
+ * Opcional donde una variable vacía (`RESEND_API_KEY=` en el `.env`) cuenta
+ * como no configurada, en vez de fallar la validación del valor.
+ */
+function optional<T extends z.ZodType>(schema: T) {
+  return z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+}
+
+/**
  * Esquema de variables de entorno. `ConfigModule.forRoot({ validate })` lo
  * aplica al arrancar: si falta o es inválida una variable, el proceso no
  * levanta, en vez de fallar en la primera petición que la necesite.
@@ -33,14 +41,31 @@ const envSchema = z.object({
   SEED_EDUCATOR_EMAIL: z.email().optional(),
   SEED_EDUCATOR_PASSWORD: z.string().min(8).optional(),
 
-  // Opcionales en la spec 001; pasan a requeridas en la 002, cuando exista el
-  // adaptador que envía correos de verdad.
-  RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().optional(),
-  EMAIL_REDIRECT_TO: z.string().optional(),
+  /// Correo (spec 006). Sin `RESEND_API_KEY` los correos van al log (transporte
+  /// de consola); las reglas cruzadas están en `superRefine`, abajo.
+  RESEND_API_KEY: optional(z.string()),
+  EMAIL_FROM: optional(z.string()),
+  EMAIL_REPLY_TO: optional(z.email()),
+  /// Sandbox de Resend: desvía todos los destinatarios a esta dirección.
+  EMAIL_REDIRECT_TO: optional(z.email()),
+  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(1000).default(15000),
 
   OBSERVE_APP_KEY: z.string().optional(),
   OBSERVE_APP_SECRET: z.string().optional(),
+}).superRefine((env, ctx) => {
+  if (env.RESEND_API_KEY && !env.EMAIL_FROM) {
+    ctx.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'es obligatoria cuando hay RESEND_API_KEY' });
+  }
+  if (env.NODE_ENV === 'production' && !env.RESEND_API_KEY) {
+    ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'es obligatoria en producción' });
+  }
+  if (env.NODE_ENV === 'production' && env.EMAIL_REDIRECT_TO) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['EMAIL_REDIRECT_TO'],
+      message: 'no se permite en producción: desviaría los correos reales',
+    });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;

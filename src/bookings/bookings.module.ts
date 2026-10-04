@@ -1,15 +1,15 @@
 import { MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { GuardianContextMiddleware } from '../auth/guardian-context.middleware.js';
-import { OutboxService } from '../outbox/outbox.service.js';
+import { OutboxModule } from '../outbox/outbox.module.js';
 import { BookingsController } from './bookings.controller.js';
 import { BookingsService } from './bookings.service.js';
 import { SessionsController } from './sessions.controller.js';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, OutboxModule],
   controllers: [BookingsController, SessionsController],
-  providers: [BookingsService, OutboxService],
+  providers: [BookingsService],
 })
 export class BookingsModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

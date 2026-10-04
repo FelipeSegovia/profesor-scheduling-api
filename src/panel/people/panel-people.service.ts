@@ -61,7 +61,10 @@ export class PanelPeopleService {
       throw new DomainError(PanelErrorMessage.GUARDIAN_NOT_FOUND, 404, 'GUARDIAN_NOT_FOUND');
     }
     const [children, sessions] = await Promise.all([
-      this.prisma.child.findMany({ where: { guardianId: id } }),
+      this.prisma.child.findMany({
+        where: { guardianId: id },
+        include: { _count: { select: { notes: true } } },
+      }),
       this.prisma.session.findMany({
         where: { guardianId: id },
         include: { child: true, guardian: true },
@@ -71,7 +74,7 @@ export class PanelPeopleService {
 
     return {
       guardian: this.toGuardianDto(guardian),
-      children: children.map((c) => this.toChildDto(c)),
+      children: children.map((c) => ({ ...this.toChildDto(c), notesCount: c._count.notes })),
       sessions: sessions.map(sessionToPanelDto),
     };
   }

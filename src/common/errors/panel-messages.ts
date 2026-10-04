@@ -16,4 +16,6 @@ export const PanelErrorMessage = {
   SERIES_EMPTY: 'Todas las fechas de la serie están ocupadas, bloqueadas o ya pasaron.',
   GUARDIAN_EXISTS: 'Ya existe un apoderado con ese correo.',
   CHILD_EXISTS: 'Ya existe un niño con ese nombre para este apoderado.',
+  NOTE_NOT_FOUND: 'Registro no encontrado.',
+  NOTE_SESSION_MISMATCH: 'La sesión elegida no es de este niño.',
 } as const;

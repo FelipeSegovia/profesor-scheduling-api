@@ -35,11 +35,13 @@ contrato sin levantar un entorno de desarrollo.
 
 ## Estado
 
-Hay **40 rutas** documentadas (todas bajo el prefijo `/api`), de las specs
+Hay **45 rutas** documentadas (todas bajo el prefijo `/api`), de las specs
 `001-fundaciones-dominio` (solo `/health`), `002-documentacion-swagger`
 (Swagger montado), `003-reserva-publica` (el bloque del apoderado) y
 `004-panel-educadora` (el bloque `/panel/*`) y `005-avisos-tiempo-real` (el stream
-y las notificaciones del panel).
+y las notificaciones del panel). `006-correos-resend` no agrega rutas: envía los
+correos que ya disparaban los endpoints (ver "Correos"). `007-ficha-clinica`
+agrega las cinco rutas de la ficha clínica por niño (ver "Ficha clínica").
 
 ### Apoderado y público
 
@@ -49,7 +51,7 @@ y las notificaciones del panel).
 | slots | `/api/slots` | GET | Cupos de lunes a sábado para la semana de `weekStart` (query, `YYYY-MM-DD`). | — |
 | bookings | `/api/bookings` | POST | Reserva una sesión suelta. | `Bearer` opcional (autocompleta/actualiza el perfil si hay sesión). |
 | bookings | `/api/bookings/{id}` | GET | Consulta una reserva por id. | — (mismo comportamiento que el mock que reemplaza: no valida quién pregunta). |
-| sessions | `/api/sessions/confirm/{token}` | POST | Confirma una sesión pendiente. Idempotente. Avisa a la educadora por correo si el cambio no lo hizo ella (spec 004). | — (el token del correo es la autenticación). |
+| sessions | `/api/sessions/confirm/{token}` | POST | Confirma una sesión pendiente. Idempotente. Avisa a la educadora por correo (ver "Correos"). | — (el token del correo es la autenticación). |
 | sessions | `/api/sessions/cancel/{token}` | POST | Cancela una sesión. Idempotente. Ídem aviso a la educadora. | — (ídem). |
 | auth | `/api/auth/register` | POST | Crea la cuenta opcional del apoderado. | — |
 | auth | `/api/auth/login` | POST | Inicia sesión. | — |
@@ -86,11 +88,16 @@ login.
 | panel-sessions | `/api/panel/sessions/{id}/confirm` | POST | Marca `confirmada` a mano. |
 | panel-sessions | `/api/panel/sessions/{id}/cancel` | POST | Cancela una sesión. |
 | panel-people | `/api/panel/guardians` | GET | Lista apoderados (`?query=`), con conteo de niños y sesiones activas. |
-| panel-people | `/api/panel/guardians/{id}` | GET | Ficha de un apoderado: sus niños y el histórico completo de sesiones. |
+| panel-people | `/api/panel/guardians/{id}` | GET | Ficha de un apoderado: sus niños (cada uno con `notesCount`, los registros de su ficha clínica) y el histórico completo de sesiones. |
 | panel-people | `/api/panel/guardians` | POST | Crea una ficha de apoderado. |
 | panel-people | `/api/panel/guardians/{id}` | PATCH | Actualiza nombre o teléfono. |
 | panel-people | `/api/panel/guardians/{id}/children` | POST | Agrega un niño (sin el rango de edad 3–13 del formulario público). |
 | panel-people | `/api/panel/children/{id}` | PATCH | Actualiza nombre o edad de un niño. |
+| panel-clinical-notes | `/api/panel/children/{id}/notes` | GET | Registros de la ficha clínica de un niño, con el niño y su apoderado. |
+| panel-clinical-notes | `/api/panel/children/{id}/notes` | POST | Agrega un registro; con `notifyGuardian: true` se envía por correo al apoderado. |
+| panel-clinical-notes | `/api/panel/children/{id}/notes.pdf` | GET | Descarga en PDF el historial completo de la ficha. |
+| panel-clinical-notes | `/api/panel/notes/{id}` | PATCH | Edita un registro. No reenvía el correo. |
+| panel-clinical-notes | `/api/panel/notes/{id}` | DELETE | Borra un registro (204). |
 | panel-events | `/api/panel/events` | GET | Stream `text/event-stream` (SSE) de cambios de sesiones; ver "Avisos en tiempo real". |
 | panel-notifications | `/api/panel/notifications` | GET | Avisos de la campana (lo que hicieron apoderados o el sistema): hasta 20 ítems más el total de no leídos. |
 | panel-notifications | `/api/panel/notifications/seen` | POST | Marca todos los avisos como vistos (204). |
@@ -170,6 +177,108 @@ actividad reciente **menos lo que hizo la propia educadora**.
 - Cada sesión aporta su alta y solo su **último** cambio de estado, no el
   historial intermedio.
 
+## Ficha clínica (spec 007)
+
+Historial de lo que la educadora trabaja con cada niño: una lista de registros
+fechados. Solo ella los ve en el panel; el apoderado únicamente recibe por
+correo los que ella decide enviarle. Todas las rutas requieren el `Bearer` de la
+educadora.
+
+**`ClinicalNoteDto`**
+
+```jsonc
+{
+  "id": "…",
+  "childId": "…",
+  "date": "2026-10-05",          // día del trabajo (YYYY-MM-DD, Chile), no un instante
+  "title": "Trabajamos lectura",
+  "body": "Practicó sílabas.",
+  "sessionId": "…" | null,       // sesión de la agenda a la que corresponde
+  "session": { "date": "2026-10-05", "time": "19:00", "status": "CONFIRMED" } | null,
+  "guardianNotified": true,      // se pidió enviarlo al apoderado al crearlo
+  "createdAt": "2026-10-03T12:00:00.000Z",
+  "updatedAt": "2026-10-03T12:00:00.000Z"
+}
+```
+
+- **`GET /api/panel/children/{id}/notes`** → `200 { child, guardian, notes }`.
+  `child` y `guardian` tienen la forma de `GET /api/panel/guardians/{id}` (sin
+  `notesCount`). `notes` va del más reciente al más antiguo (`date` y, a igual
+  fecha, el último creado primero).
+- **`POST /api/panel/children/{id}/notes`** → `201 ClinicalNoteDto`. Body:
+  `{ date, title, body, sessionId?, notifyGuardian }`. `notifyGuardian` es
+  **obligatorio** (booleano).
+- **`PATCH /api/panel/notes/{id}`** → `200 ClinicalNoteDto`. Body: cualquier
+  subconjunto de `{ date, title, body, sessionId }`; `sessionId: null`
+  desvincula la sesión. No acepta `notifyGuardian` (si llega, se ignora): editar
+  nunca manda un correo.
+- **`DELETE /api/panel/notes/{id}`** → `204`. Es un borrado real. Si el correo
+  del registro aún no había salido, no sale.
+- **`GET /api/panel/children/{id}/notes.pdf`** → `200 application/pdf`, con
+  `Content-Disposition: attachment; filename="ficha-<nombre>-<YYYY-MM-DD>.pdf"`
+  (nombre sin tildes). Trae el encabezado del niño y su apoderado y **todos** los
+  registros, del más antiguo al más reciente. Sin registros también responde
+  200 (dice "Sin registros"). Hay que pedirlo con el header `Authorization`,
+  así que desde el navegador se baja con `fetch` y un `Blob`, no con un enlace.
+  La API expone `Content-Disposition` por CORS (`Access-Control-Expose-Headers`):
+  sin eso, un navegador no deja leer el `filename` desde otro origen.
+
+**Validación** (`400 VALIDATION_ERROR`): `title` entre 1 y 120 caracteres,
+`body` entre 1 y 10.000 (ambos se recortan), `date` con formato `YYYY-MM-DD` y
+un día que existe. Se aceptan fechas pasadas y futuras.
+
+**Errores**
+
+| Status | `code` | Cuándo |
+| --- | --- | --- |
+| 401 | `NO_SESSION` | Sin `Bearer` válido. |
+| 404 | `CHILD_NOT_FOUND` | El niño no existe (`GET`/`POST` de `children/{id}/…`). |
+| 404 | `NOTE_NOT_FOUND` | El registro no existe (`PATCH`/`DELETE`). |
+| 422 | `NOTE_SESSION_MISMATCH` | El `sessionId` no existe o es de otro niño. |
+
+Ninguna de estas rutas emite eventos de `GET /api/panel/events` ni avisos en la
+campana: lo hace ella misma.
+
+## Correos (spec 006)
+
+Ningún endpoint cambia de forma ni de respuesta: los correos son un efecto
+secundario. La mayoría se escriben en `OutboxEmail` en la misma transacción
+que el cambio y salen después, en segundo plano (cada
+`OUTBOX_POLL_INTERVAL_MS`, 15 s por defecto), así que **la respuesta HTTP no
+espera al correo** y un fallo del proveedor nunca revierte la operación. Se
+envían con Resend; sin `RESEND_API_KEY` se escriben en el log de la API.
+
+| Endpoint | Correo al apoderado | Correo a la educadora |
+| --- | --- | --- |
+| `POST /api/bookings` | Reserva pendiente (Confirmo / No puedo) o ya confirmada (No puedo). | Solo si nace confirmada porque el plazo ya venció. |
+| `POST /api/sessions/confirm/{token}` | Sesión confirmada (No puedo). | El apoderado confirmó. |
+| `POST /api/sessions/cancel/{token}` | Sesión cancelada. | El apoderado canceló. |
+| `POST /api/panel/sessions` | Igual que una reserva pública. | — |
+| `POST /api/panel/series` | Igual que una reserva, solo para las sesiones que ya están dentro de la antelación de serie (`seriesNoticeHours`). | — |
+| `PATCH /api/panel/sessions/{id}/move` | Cambio de horario; pide confirmar de nuevo si sigue pendiente. | — |
+| `POST /api/panel/sessions/{id}/confirm` | Sesión confirmada. | — |
+| `POST /api/panel/sessions/{id}/cancel` | Sesión cancelada. | — |
+| `POST /api/panel/children/{id}/notes` | Solo si el body trae `notifyGuardian: true`: el registro completo (fecha, título y texto). Sin enlaces. | — |
+| `POST /api/auth/forgot` | Enlace para restablecer la clave (solo si la cuenta existe). Sale directo, sin outbox. | — |
+
+Enlaces que traen los correos, armados sobre `PUBLIC_WEB_URL` (rutas de
+`public-parents-scheduling-web/`):
+
+- Confirmo: `/sesion/{confirmToken}/confirmar` → `POST /api/sessions/confirm/{token}`.
+- No puedo: `/sesion/{cancelToken}/cancelar` → `POST /api/sessions/cancel/{token}`.
+- Restablecer clave: `/cuenta/restablecer/{token}` → `POST /api/auth/reset` (vence en 1 hora).
+
+El contenido se arma con el estado de la sesión **al enviar**: si la cita ya
+empezó, los correos al apoderado no se mandan, y tampoco los que invitan a
+asistir de una sesión ya cancelada o vencida. La educadora nunca recibe correo
+por lo que hace ella misma en el panel.
+
+El correo de un registro de la ficha (`CLINICAL_NOTE`) también se arma **al
+enviar**: si ella lo edita antes del despacho, sale el texto corregido, y si lo
+borra antes, no sale (la fila queda `SKIPPED`). No depende de la fecha del
+registro: uno de una fecha pasada se envía igual. Asunto: `Nuevo registro en la
+ficha de <niño>`.
+
 ## Formato de error
 
 Todas las respuestas de error tienen esta forma (`AllExceptionsFilter`,
@@ -222,13 +331,16 @@ usuaria única, la recuperación es operativa (`pnpm db:seed` con
 ## Qué no hay todavía
 
 - El job que vence las sesiones `PENDING` → `NOT_CONFIRMED` al cumplirse el
-  plazo, y el despacho real de los correos (`OutboxEmail` se llena en cada
-  evento, incluidos los del panel, pero ningún proceso la despacha todavía).
+  plazo, con su correo de liberación, y los correos de cada sesión de una serie
+  al llegar la antelación configurada (hoy solo salen los de las sesiones que
+  ya estaban dentro de esa ventana al crear la serie).
 - Rate limiting en `POST /api/panel/auth/login`.
-- Ficha por alumno con historial narrativo (vista por niño, distinta de la
-  ficha de datos que ya expone `GET /api/panel/guardians/:id`).
+- Que el apoderado vea la ficha clínica en la web pública o desde su cuenta
+  (solo recibe por correo los registros que la educadora le envía), reenviar el
+  correo de un registro, adjuntos y historial de versiones de un registro.
 
 Detalle de reglas de negocio y de qué endpoint viene de qué spec:
 [`../.specs/003-reserva-publica/spec.md`](../.specs/003-reserva-publica/spec.md),
 [`../.specs/004-panel-educadora/spec.md`](../.specs/004-panel-educadora/spec.md),
+[`../.specs/007-ficha-clinica/spec.md`](../.specs/007-ficha-clinica/spec.md),
 [`../CLAUDE.md`](../CLAUDE.md).

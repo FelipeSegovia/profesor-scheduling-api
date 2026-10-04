@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { hash, verify } from 'argon2';
 import { buildGuardianProfile } from '../common/dto.js';
@@ -7,6 +7,9 @@ import { ErrorMessage } from '../common/errors/messages.js';
 import { hashToken, randomToken } from '../common/tokens/random-token.js';
 import { normalizeEmail, PASSWORD_MIN_LENGTH } from '../domain/auth.js';
 import type { Env } from '../config/env.js';
+import { resetPasswordUrl } from '../email/email-links.js';
+import { EMAIL_SENDER, type EmailSender } from '../email/email-sender.js';
+import { renderEmail } from '../email/render-email.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ForgotBody, LoginBody, RegisterBody, ResetBody } from './auth.schemas.js';
 import type { AuthResult } from './auth.types.js';
@@ -21,10 +24,13 @@ const RESET_TTL_MS = 60 * 60 * 1000;
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly config: ConfigService<Env, true>,
+    @Inject(EMAIL_SENDER) private readonly emailSender: EmailSender,
   ) {}
 
   private assertPassword(password: string): void {
@@ -102,8 +108,24 @@ export class AuthService {
       },
     });
 
+    // Directo y sin esperar (spec 006, requisito 5): no pasa por el outbox para
+    // no guardar el token en claro, y no se espera para que la respuesta tarde
+    // lo mismo exista o no la cuenta. Si falla, el apoderado vuelve a pedirlo.
+    void this.sendResetEmail(guardian.email, plainToken).catch((err: unknown) =>
+      this.logger.error(`No se pudo enviar el correo de restablecer clave: ${err instanceof Error ? err.message : String(err)}`),
+    );
+
     const isProduction = this.config.get('NODE_ENV', { infer: true }) === 'production';
     return isProduction ? { ok: true } : { ok: true, devResetToken: plainToken };
+  }
+
+  private async sendResetEmail(to: string, plainToken: string): Promise<void> {
+    const email = await renderEmail({
+      kind: 'PASSWORD_RESET',
+      resetUrl: resetPasswordUrl(this.config.get('PUBLIC_WEB_URL', { infer: true }), plainToken),
+      expiresInMinutes: RESET_TTL_MS / 60_000,
+    });
+    await this.emailSender.send({ ...email, to });
   }
 
   async reset(body: ResetBody): Promise<AuthResult> {

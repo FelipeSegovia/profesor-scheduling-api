@@ -194,6 +194,19 @@ export class BookingsService {
         tx,
       );
 
+      if (status === 'CONFIRMED') {
+        // La regla canónica avisa a la educadora cuando el sistema deja la cita
+        // confirmada porque el plazo ya venció (spec 006, requisito 7). Sin
+        // educadora en la base (solo en tests sin seed) la reserva sigue igual.
+        const educator = await tx.educator.findFirst();
+        if (educator) {
+          await this.outbox.write(
+            { kind: OutboxKind.SYSTEM_CONFIRMED, recipient: educator.email, sessionId: session.id },
+            tx,
+          );
+        }
+      }
+
       return { guardian, child, session };
     });
 

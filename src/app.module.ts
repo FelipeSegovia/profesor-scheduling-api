@@ -1,5 +1,6 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import { createObserveModule } from '@nestjs/observe';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from './config/config.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -8,6 +9,7 @@ import { BookingsModule } from './bookings/bookings.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { PanelModule } from './panel/panel.module.js';
 import { EventsModule } from './events/events.module.js';
+import { EmailModule } from './email/email.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -35,6 +37,9 @@ const observeImports: DynamicModule[] = observeCredentials
     ConfigModule,
     PrismaModule,
     EventsModule,
+    EmailModule,
+    // Intervalo del despachador del outbox (spec 006).
+    ScheduleModule.forRoot(),
     HealthModule,
     SlotsModule,
     AuthModule,

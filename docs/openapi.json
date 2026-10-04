@@ -982,6 +982,182 @@
         ]
       }
     },
+    "/api/panel/children/{id}/notes.pdf": {
+      "get": {
+        "operationId": "PanelClinicalNotesController_pdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF con todos los registros, del más antiguo al más reciente.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "CHILD_NOT_FOUND."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Exportar en PDF el historial completo de la ficha de un niño",
+        "tags": [
+          "panel-clinical-notes"
+        ]
+      }
+    },
+    "/api/panel/children/{id}/notes": {
+      "get": {
+        "operationId": "PanelClinicalNotesController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Niño, apoderado y registros (el más reciente primero)."
+          },
+          "404": {
+            "description": "CHILD_NOT_FOUND."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar los registros de la ficha de un niño",
+        "tags": [
+          "panel-clinical-notes"
+        ]
+      },
+      "post": {
+        "operationId": "PanelClinicalNotesController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Registro creado."
+          },
+          "400": {
+            "description": "VALIDATION_ERROR."
+          },
+          "404": {
+            "description": "CHILD_NOT_FOUND."
+          },
+          "422": {
+            "description": "NOTE_SESSION_MISMATCH."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Agregar un registro a la ficha de un niño (con correo opcional al apoderado)",
+        "tags": [
+          "panel-clinical-notes"
+        ]
+      }
+    },
+    "/api/panel/notes/{id}": {
+      "patch": {
+        "operationId": "PanelClinicalNotesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registro actualizado."
+          },
+          "400": {
+            "description": "VALIDATION_ERROR."
+          },
+          "404": {
+            "description": "NOTE_NOT_FOUND."
+          },
+          "422": {
+            "description": "NOTE_SESSION_MISMATCH."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar un registro de la ficha (no reenvía el correo)",
+        "tags": [
+          "panel-clinical-notes"
+        ]
+      },
+      "delete": {
+        "operationId": "PanelClinicalNotesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Registro borrado."
+          },
+          "404": {
+            "description": "NOTE_NOT_FOUND."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Borrar un registro de la ficha",
+        "tags": [
+          "panel-clinical-notes"
+        ]
+      }
+    },
     "/api/panel/events": {
       "get": {
         "description": "Emite `event: session` con un `SessionEvent` por cada sesión creada o cambiada, y `event: ping` cada 25 s. No reenvía eventos perdidos: al reconectar, volver a pedir resumen, agenda y notificaciones.",

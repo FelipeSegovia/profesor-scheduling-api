@@ -14,6 +14,8 @@ export interface PanelChildDto {
   guardianId: string;
   name: string;
   age: number;
+  /** Registros de su ficha clínica. Solo viene en `GET /guardians/:id` (spec 007). */
+  notesCount?: number;
 }
 
 export interface PanelGuardianDto {

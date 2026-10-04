@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: ['**/*.spec.ts'],
+    // `.spec.tsx`: tests de las plantillas de correo (React Email, spec 006).
+    include: ['**/*.spec.ts', '**/*.spec.tsx'],
   },
 });

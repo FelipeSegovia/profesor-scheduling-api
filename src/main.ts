@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule, ObserveInstrument } from './app.module.js';
+import { buildCorsOptions } from './common/cors.js';
 import { AllExceptionsFilter } from './common/errors/exception.filter.js';
 import type { Env } from './config/env.js';
 
@@ -13,7 +14,7 @@ async function bootstrap() {
   const config = app.get(ConfigService<Env, true>);
 
   app.setGlobalPrefix('api');
-  app.enableCors({ origin: config.get('CORS_ORIGINS', { infer: true }) });
+  app.enableCors(buildCorsOptions(config.get('CORS_ORIGINS', { infer: true })));
   app.useGlobalFilters(new AllExceptionsFilter());
   // Para que PrismaService.onModuleDestroy corra al recibir SIGTERM/SIGINT.
   app.enableShutdownHooks();
