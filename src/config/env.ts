@@ -59,6 +59,12 @@ const envSchema = z.object({
   if (env.NODE_ENV === 'production' && !env.RESEND_API_KEY) {
     ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'es obligatoria en producción' });
   }
+  if (env.NODE_ENV === 'production') {
+    const problem = publicWebUrlProblem(env.PUBLIC_WEB_URL);
+    if (problem) {
+      ctx.addIssue({ code: 'custom', path: ['PUBLIC_WEB_URL'], message: problem });
+    }
+  }
   if (env.NODE_ENV === 'production' && env.EMAIL_REDIRECT_TO) {
     ctx.addIssue({
       code: 'custom',
@@ -67,6 +73,25 @@ const envSchema = z.object({
     });
   }
 });
+
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
+
+/**
+ * `PUBLIC_WEB_URL` es la base de los enlaces Confirmo / No puedo / Restablecer
+ * clave de los correos. En producción una base local (el valor de `.env.example`)
+ * manda al apoderado a una página que no existe en su equipo, y sin `https` el
+ * token viaja en claro: mejor no arrancar que mandar correos con enlaces rotos.
+ */
+function publicWebUrlProblem(value: string): string | null {
+  const url = new URL(value);
+  if (LOCAL_HOSTNAMES.has(url.hostname) || url.hostname.endsWith('.localhost')) {
+    return 'no puede apuntar a localhost en producción: debe ser la URL pública de la web del apoderado';
+  }
+  if (url.protocol !== 'https:') {
+    return 'debe usar https en producción';
+  }
+  return null;
+}
 
 export type Env = z.infer<typeof envSchema>;
 

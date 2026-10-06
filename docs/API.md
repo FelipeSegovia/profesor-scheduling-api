@@ -262,7 +262,8 @@ envían con Resend; sin `RESEND_API_KEY` se escriben en el log de la API.
 | `POST /api/auth/forgot` | Enlace para restablecer la clave (solo si la cuenta existe). Sale directo, sin outbox. | — |
 
 Enlaces que traen los correos, armados sobre `PUBLIC_WEB_URL` (rutas de
-`public-parents-scheduling-web/`):
+`public-parents-scheduling-web/`; en producción tiene que ser su URL pública con
+`https`, o la API no arranca):
 
 - Confirmo: `/sesion/{confirmToken}/confirmar` → `POST /api/sessions/confirm/{token}`.
 - No puedo: `/sesion/{cancelToken}/cancelar` → `POST /api/sessions/cancel/{token}`.

@@ -63,6 +63,47 @@ describe('validateEnv — correo (spec 006)', () => {
     ).toThrow(/EMAIL_REDIRECT_TO/);
   });
 
+  describe('PUBLIC_WEB_URL en producción', () => {
+    const production = {
+      ...base,
+      NODE_ENV: 'production',
+      RESEND_API_KEY: 're_123',
+      EMAIL_FROM: 'Loreto Castillo <agenda@example.com>',
+    };
+
+    it.each([
+      'http://localhost:5173',
+      'https://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://0.0.0.0:5173',
+      'http://[::1]:5173',
+      'https://agenda.localhost',
+    ])('%s no arranca', (url) => {
+      expect(() => validateEnv({ ...production, PUBLIC_WEB_URL: url })).toThrow(
+        /PUBLIC_WEB_URL: no puede apuntar a localhost/,
+      );
+    });
+
+    it('sin https no arranca', () => {
+      expect(() =>
+        validateEnv({ ...production, PUBLIC_WEB_URL: 'http://agenda.example.cl' }),
+      ).toThrow(/PUBLIC_WEB_URL: debe usar https/);
+    });
+
+    it('acepta la URL pública con https, también con subruta', () => {
+      expect(
+        validateEnv({ ...production, PUBLIC_WEB_URL: 'https://agenda.example.cl' }).PUBLIC_WEB_URL,
+      ).toBe('https://agenda.example.cl');
+      expect(() =>
+        validateEnv({ ...production, PUBLIC_WEB_URL: 'https://example.cl/agenda/' }),
+      ).not.toThrow();
+    });
+
+    it('fuera de producción localhost sigue valiendo', () => {
+      expect(validateEnv(base).PUBLIC_WEB_URL).toBe('http://localhost:5173');
+    });
+  });
+
   it('rechaza un correo inválido y un intervalo menor a 1000 ms', () => {
     expect(() =>
       validateEnv({ ...base, EMAIL_REPLY_TO: 'no-es-correo' }),
